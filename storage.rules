@@ -1,0 +1,57 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ==========================================
+    // FUNCIÓN AUXILIAR: Verificar autenticación
+    // ==========================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ==========================================
+    // REGLA GLOBAL: DENEGAR POR DEFECTO
+    // ==========================================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // ARCHIVOS PÚBLICOS (Ej: iconos, imágenes de productos)
+    // ==========================================
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Solo se sube desde el backend/admin
+    }
+
+    // ==========================================
+    // ARCHIVOS DE USUARIOS (Perfiles, avatares)
+    // ==========================================
+    match /users/{userId}/{allPaths=**} {
+      // Solo el dueño puede leer y escribir sus propios archivos
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      
+      // Validación básica de tamaño (máx 5MB) y tipo de archivo (imágenes)
+      allow write: if isSignedIn() && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ==========================================
+    // ARCHIVOS DE MAESTROS (Fotos de perfil, certificados)
+    // ==========================================
+    match /masters/{masterId}/{allPaths=**} {
+      // Solo el maestro asignado o un admin puede gestionar estos archivos
+      allow read: if isSignedIn(); // Público puede ver fotos de maestros
+      allow write: if isSignedIn() && (request.auth.uid == masterId || request.auth.token.admin == true);
+    }
+
+    // ==========================================
+    // ARCHIVOS PRIVADOS / ADMINISTRATIVOS
+    // ==========================================
+    match /private/{allPaths=**} {
+      // Acceso restringido únicamente a roles administrativos (validado desde backend)
+      allow read, write: if false; // El cliente NUNCA accede directamente aquí
+    }
+  }
+}

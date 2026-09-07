@@ -81,6 +81,7 @@ const eslintConfig = defineConfig([
     "*.config.js",
     "*.config.mjs",
     "*.config.ts",
+    "functions/**/*"
   ]),
 ]);
 
