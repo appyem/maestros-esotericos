@@ -63,6 +63,13 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Excepción específica para el archivo logger.ts
+  {
+    files: ["src/lib/logger.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
   globalIgnores([
     ".next/**",
     "out/**",

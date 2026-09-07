@@ -1,36 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Maestros Esotéricos
 
-## Getting Started
+Plataforma profesional de consultas esotéricas con inteligencia artificial y maestros reales.
 
-First, run the development server:
+## 🚀 Comandos Principales
+- `npm run dev` : Iniciar desarrollo local
+- `npm run build` : Compilar para producción
+- `npm run lint` : Verificar calidad de código
+- `npm run test:run` : Ejecutar pruebas
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🏗️ Estructura
+- `src/app/` : Rutas y páginas (Next.js App Router)
+- `src/components/ui/` : Componentes base reutilizables
+- `src/features/` : Módulos de negocio (Auth, Chat, Pagos, etc.)
+- `src/lib/` : Utilidades y logger seguro
+- `tests/` : Pruebas unitarias
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔐 Seguridad
+- Variables de entorno en `.env.local` (NUNCA commitear)
+- Logging sanitizado automático
+- TypeScript en modo estricto
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📌 Estado
+✅ FASE 1 Completada: Arquitectura base, UI, Testing y Seguridad inicial.
