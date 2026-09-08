@@ -1,11 +1,11 @@
 {
-  "name": "Maestros Esotéricos",
+  "name": "Maestros Esotéricos - Consultas Profesionales",
   "short_name": "Maestros",
-  "description": "Plataforma profesional de consultas esotéricas con IA y maestros reales.",
+  "description": "Plataforma profesional de consultas esotéricas con inteligencia artificial y maestros reales. Un espacio privado para encontrar orientación.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "theme_color": "#4f46e5",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -20,5 +20,8 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "categories": ["lifestyle", "entertainment"],
+  "lang": "es",
+  "dir": "ltr"
 }

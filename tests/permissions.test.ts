@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { ROLE_PERMISSIONS, type UserRole } from '@/types/auth';
 
 describe('Security: Role Permissions Matrix', () => {
