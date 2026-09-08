@@ -37,29 +37,56 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // COLECCIÓN DE USUARIOS (PROTEGIDA CONTRA ESCALAMIENTO)
+    // COLECCIÓN DE USUARIOS
     // ==========================================
     match /users/{userId} {
-      // Lectura: Solo el dueño o administradores
       allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
-      
-      // Creación: El usuario solo puede crear su propio documento. 
-      // Se fuerza que el rol inicial sea CLIENTE o PUBLIC (nunca ADMIN/SUPER_ADMIN)
       allow create: if isSignedIn() && request.auth.uid == userId
                     && (request.resource.data.role == 'CLIENTE' || request.resource.data.role == 'PUBLIC');
-      
-      // Actualización: El dueño puede actualizar, PERO no puede modificar campos sensibles.
-      // La regla verifica que el valor nuevo (request.resource.data) sea IGUAL al valor actual (resource.data)
-      // para los campos críticos. Admins/SuperAdmins sí pueden modificarlos.
       allow update: if (isOwner(userId) 
                        && request.resource.data.role == resource.data.role
                        && request.resource.data.status == resource.data.status
                        && request.resource.data.isAnonymous == resource.data.isAnonymous)
                     || isAdmin() 
                     || isSuperAdmin();
-      
-      // Eliminación: Solo administradores (para evitar que un usuario borre su propio registro y cause inconsistencias)
       allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // ==========================================
+    // CONVERSACIONES (Ownership estricto)
+    // ==========================================
+    match /conversations/{conversationId} {
+      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+    }
+
+    // ==========================================
+    // MENSAJES (Ownership estricto, inmutabilidad de campos clave)
+    // ==========================================
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId
+                    && request.resource.data.keys().hasOnly(['conversationId', 'userId', 'senderType', 'content', 'createdAt', 'status', 'metadata']);
+                    
+      // No se permite update ni delete para mantener la inmutabilidad del historial (soft delete se manejará vía status si es necesario, pero por ahora denegamos)
+      allow update, delete: if false; 
+    }
+
+    // ==========================================
+    // MEMORIA DE IA (Ownership estricto)
+    // ==========================================
+    match /aiMemory/{memoryId} {
+      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+    }
+
+    // ==========================================
+    // RESÚMENES DE IA (Ownership estricto)
+    // ==========================================
+    match /aiSummaries/{summaryId} {
+      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
     }
 
     // ==========================================
@@ -67,14 +94,7 @@ service cloud.firestore {
     // ==========================================
     match /auditLogs/{logId} {
       allow read: if isAdmin() || isSuperAdmin();
-      allow write: if false; // Solo el backend (Cloud Functions) puede escribir aquí
-    }
-
-    // ==========================================
-    // COLECCIÓN DE SESIONES DE IA
-    // ==========================================
-    match /aiSessions/{sessionId} {
-      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow write: if false;
     }
   }
 }

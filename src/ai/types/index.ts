@@ -33,8 +33,8 @@ export type AISafetyFlag =
   | 'PROMPT_INJECTION_ATTEMPT';
 
 export interface AIConfidence {
-  specialty: number; // 0.0 a 1.0
-  intent: number;    // 0.0 a 1.0
+  specialty: number;
+  intent: number;
 }
 
 export interface AIContext {
@@ -47,10 +47,8 @@ export interface AIContext {
 
 export interface AIRequest {
   requestId: string;
-  context: AIContext;
+  context?: Partial<AIContext>; // Permite campos opcionales al construir la solicitud
   userInput: string;
-  // NOTA: El cliente NUNCA envía systemPrompt, model o provider.
-  // Esto lo controla exclusivamente el Orquestador en el servidor.
 }
 
 export interface AIResponse {
@@ -82,9 +80,9 @@ export type AIErrorCode =
 
 export interface AIError {
   code: AIErrorCode;
-  message: string; // Detalle técnico para logs
+  message: string;
   isUserFacing: boolean;
-  userFacingMessage: string; // Mensaje seguro para el frontend
+  userFacingMessage: string;
 }
 
 export interface AIConfig {
@@ -102,10 +100,8 @@ export interface AICost {
   limitExceeded: boolean;
 }
 
-/**
- * Abstracción del Proveedor de IA.
- * El resto de la aplicación depende de esta interfaz, no de un proveedor específico.
- */
 export interface AIProvider {
   generateResponse(request: AIRequest, config: AIConfig): Promise<AIResponse>;
 }
+
+export * from './conversation';

@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 import { processAIRequest } from '@/ai/orchestrator';
-import type { AIResponse, AIError } from '@/ai/types';
+import type { AIResponse } from '@/ai/types';
 import { logger } from '@/lib/logger';
 
-/**
- * Esquema de validación estricto para la solicitud entrante.
- * El cliente NO puede enviar 'model', 'systemPrompt' ni 'provider'.
- */
 const RequestSchema = z.object({
   userInput: z.string().min(1).max(1000),
   context: z.object({
@@ -25,7 +22,6 @@ const RequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Validar el cuerpo de la solicitud
     const body = await request.json();
     const validationResult = RequestSchema.safeParse(body);
 
@@ -38,26 +34,18 @@ export async function POST(request: NextRequest) {
     }
 
     const { userInput, context } = validationResult.data;
-
-    // 2. Procesar a través del Orquestador
     const result = await processAIRequest({ userInput, context });
 
-    // 3. Manejar la respuesta o el error
     if ('isUserFacing' in result && result.isUserFacing === false) {
-      // Es un error interno del orquestador
       logger.error('AI API: Error del orquestador', { code: result.code, message: result.message });
-      
       return NextResponse.json(
         { error: result.userFacingMessage },
         { status: 500 }
       );
     }
 
-    // Es una respuesta exitosa y validada
     const aiResponse = result as AIResponse;
     
-    // 4. Sanitizar la respuesta antes de enviarla al cliente
-    // (Aseguramos que no se filtre metadata sensible si la hubiera)
     const safeResponse = {
       requestId: aiResponse.requestId,
       text: aiResponse.text,
