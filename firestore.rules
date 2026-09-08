@@ -3,32 +3,22 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // ==========================================
-    // FUNCIONES AUXILIARES DE AUTORIZACIÓN
+    // FUNCIONES AUXILIARES
     // ==========================================
-    
-    // Verifica si el usuario está autenticado
     function isSignedIn() {
       return request.auth != null;
     }
     
-    // Verifica si el usuario es el dueño del recurso
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    // Verifica si el usuario tiene rol de Administrador (Custom Claim)
     function isAdmin() {
       return isSignedIn() && request.auth.token.admin == true;
     }
     
-    // Verifica si el usuario tiene rol de Super Admin (Custom Claim)
     function isSuperAdmin() {
       return isSignedIn() && request.auth.token.superAdmin == true;
-    }
-    
-    // Verifica si el usuario es un Maestro asignado (Custom Claim o campo en doc)
-    function isAssignedMaster(masterId) {
-      return isSignedIn() && (request.auth.uid == masterId || request.auth.token.master == true);
     }
 
     // ==========================================
@@ -39,7 +29,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // COLECCIONES PÚBLICAS (Acceso de lectura para todos)
+    // COLECCIONES PÚBLICAS
     // ==========================================
     match /public_settings/{settingId} {
       allow read: if true;
@@ -47,42 +37,44 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // COLECCIÓN DE USUARIOS (Perfiles)
+    // COLECCIÓN DE USUARIOS (PROTEGIDA CONTRA ESCALAMIENTO)
     // ==========================================
     match /users/{userId} {
-      // Un usuario solo puede leer su propio perfil. Admins pueden leer todos.
+      // Lectura: Solo el dueño o administradores
       allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
       
-      // Un usuario solo puede crear su propio perfil (y solo con su UID)
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Creación: El usuario solo puede crear su propio documento. 
+      // Se fuerza que el rol inicial sea CLIENTE o PUBLIC (nunca ADMIN/SUPER_ADMIN)
+      allow create: if isSignedIn() && request.auth.uid == userId
+                    && (request.resource.data.role == 'CLIENTE' || request.resource.data.role == 'PUBLIC');
       
-      // Un usuario solo puede actualizar sus propios datos (no puede elevar sus propios privilegios)
-      allow update: if isOwner(userId) && 
-                    request.resource.data.keys().hasOnly(['name', 'alias', 'updatedAt']) &&
-                    request.resource.data.name == resource.data.name; // Simplificado para FASE 2
+      // Actualización: El dueño puede actualizar, PERO no puede modificar campos sensibles.
+      // La regla verifica que el valor nuevo (request.resource.data) sea IGUAL al valor actual (resource.data)
+      // para los campos críticos. Admins/SuperAdmins sí pueden modificarlos.
+      allow update: if (isOwner(userId) 
+                       && request.resource.data.role == resource.data.role
+                       && request.resource.data.status == resource.data.status
+                       && request.resource.data.isAnonymous == resource.data.isAnonymous)
+                    || isAdmin() 
+                    || isSuperAdmin();
       
-      // Solo Admin o Super Admin pueden eliminar usuarios
+      // Eliminación: Solo administradores (para evitar que un usuario borre su propio registro y cause inconsistencias)
       allow delete: if isAdmin() || isSuperAdmin();
     }
 
     // ==========================================
-    // COLECCIÓN DE AUDITORÍA (Audit Logs)
+    // COLECCIÓN DE AUDITORÍA
     // ==========================================
     match /auditLogs/{logId} {
-      // Nadie puede leer logs desde el cliente (solo backend/admin)
       allow read: if isAdmin() || isSuperAdmin();
-      
-      // Los clientes NO pueden escribir directamente en los logs de auditoría.
-      // Esto se hará exclusivamente desde Cloud Functions (Backend).
-      allow write: if false; 
+      allow write: if false; // Solo el backend (Cloud Functions) puede escribir aquí
     }
 
     // ==========================================
-    // COLECCIÓN DE SESIONES DE IA (Preparado para FASE 5/6)
+    // COLECCIÓN DE SESIONES DE IA
     // ==========================================
     match /aiSessions/{sessionId} {
-      // Solo el dueño de la sesión o un admin puede acceder
-      allow read, write: if isOwner(resource.data.userId) || isAdmin() || isSuperAdmin();
+      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
   }
 }

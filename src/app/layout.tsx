@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from 'next';
+
+import { AuthProvider } from '@/features/auth';
+
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Maestros Esotéricos - Consultas Profesionales',
-  description:
-    'Plataforma profesional de consultas esotéricas con inteligencia artificial y maestros reales.',
+  description: 'Plataforma profesional de consultas esotéricas con inteligencia artificial y maestros reales.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -28,7 +30,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }

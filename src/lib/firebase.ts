@@ -1,6 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
-// Verificamos que las variables de entorno existan
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -10,13 +12,15 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Validación de seguridad: si falta alguna variable crítica, lanzamos error en desarrollo
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
   console.error('[FIREBASE] Faltan variables de entorno críticas de Firebase.');
 }
 
-// Inicializamos Firebase solo si no existe una instancia previa
-// Esto evita errores de "Firebase App named '[DEFAULT]' already exists" en Next.js (Hot Reload)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Inicializar servicios
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 export { app };
