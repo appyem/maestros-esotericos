@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
+import { describe, it, expect } from 'vitest';
 
 import { ContextBuilder } from '@/ai/context/ContextBuilder';
 import { MemoryProvider } from '@/ai/providers/MemoryProvider';

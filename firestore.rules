@@ -5,21 +5,11 @@ service cloud.firestore {
     // ==========================================
     // FUNCIONES AUXILIARES
     // ==========================================
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-    
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
-    }
-    
-    function isSuperAdmin() {
-      return isSignedIn() && request.auth.token.superAdmin == true;
-    }
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
+    function isSuperAdmin() { return isSignedIn() && request.auth.token.superAdmin == true; }
+    function isMasterOf(masterId) { return isSignedIn() && request.auth.uid == masterId; }
 
     // ==========================================
     // REGLA GLOBAL: DENEGAR POR DEFECTO
@@ -47,43 +37,111 @@ service cloud.firestore {
                        && request.resource.data.role == resource.data.role
                        && request.resource.data.status == resource.data.status
                        && request.resource.data.isAnonymous == resource.data.isAnonymous)
-                    || isAdmin() 
-                    || isSuperAdmin();
+                    || isAdmin() || isSuperAdmin();
       allow delete: if isAdmin() || isSuperAdmin();
     }
 
     // ==========================================
-    // CONVERSACIONES (Ownership estricto)
+    // COLECCIÓN DE MAESTROS
+    // ==========================================
+    match /masters/{masterId} {
+      allow read: if isOwner(masterId) || isAdmin() || isSuperAdmin() 
+                  || (isSignedIn() && resource.data.status == 'ACTIVE');
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId
+                    && request.resource.data.status == 'PENDING'
+                    && request.resource.data.onboardingStatus == 'NOT_STARTED';
+      allow update: if (isOwner(masterId) 
+                       && !request.resource.data.keys().hasAny(['status', 'verification', 'userId', 'createdAt', 'masterId', 'administrativeMetadata']))
+                    || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // ==========================================
+    // COLECCIÓN DE DISPONIBILIDAD (Schedules)
+    // ==========================================
+    match /availabilitySchedules/{scheduleId} {
+      // Lectura: Solo el propio maestro o administradores (la disponibilidad pública se calcula vía backend DTO)
+      allow read: if isSignedIn() && (isOwner(resource.data.masterId) || isAdmin() || isSuperAdmin());
+      // Escritura: Solo el propio maestro o administradores
+      allow create, update, delete: if isSignedIn() && (isOwner(request.resource.data.masterId) || isAdmin() || isSuperAdmin());
+    }
+
+    // ==========================================
+    // COLECCIÓN DE EXCEPCIONES (Exceptions)
+    // ==========================================
+    match /availabilityExceptions/{exceptionId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.masterId) || isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn() && (isOwner(request.resource.data.masterId) || isAdmin() || isSuperAdmin());
+      allow update, delete: if isSignedIn() && (isOwner(resource.data.masterId) || isAdmin() || isSuperAdmin());
+    }
+
+    // ==========================================
+    // COLECCIÓN DE CITAS (Appointments)
+    // ==========================================
+    match /appointments/{appointmentId} {
+      // Lectura: Cliente propietario, maestro asignado o administradores
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.clientUserId ||
+        request.auth.uid == resource.data.masterId ||
+        isAdmin() || isSuperAdmin()
+      );
+      
+      // Creación: El cliente solo puede crear citas en estado 'REQUESTED' para sí mismo.
+      // Se valida estrictamente que no pueda enviar campos prohibidos.
+      allow create: if isSignedIn() && (
+        (request.auth.uid == request.resource.data.clientUserId && 
+         request.resource.data.status == 'REQUESTED' &&
+         request.resource.data.keys().hasOnly(['clientUserId', 'masterId', 'startAt', 'endAt', 'timezone', 'status', 'source', 'createdAt', 'updatedAt', 'createdBy', 'version'])) ||
+        isAdmin() || isSuperAdmin()
+      );
+      
+      // Actualización: 
+      // - Admin/SuperAdmin: Total.
+      // - Maestro: Puede actualizar estado (ej. a CONFIRMED, CANCELLED) de sus propias citas.
+      // - Cliente: SOLO puede cancelar su propia cita, y está obligado a establecer cancelledAt, cancelledBy y status='CANCELLED', sin modificar masterId, startAt, etc.
+      allow update: if isSignedIn() && (
+        isAdmin() || isSuperAdmin() ||
+        isMasterOf(resource.data.masterId) ||
+        (request.auth.uid == resource.data.clientUserId && 
+         request.resource.data.status == 'CANCELLED' &&
+         request.resource.data.cancelledAt != null &&
+         request.resource.data.cancelledBy == request.auth.uid &&
+         request.resource.data.masterId == resource.data.masterId &&
+         request.resource.data.startAt == resource.data.startAt &&
+         request.resource.data.endAt == resource.data.endAt)
+      );
+      
+      // Eliminación: Solo administradores (se prefiere soft delete vía estado CANCELLED)
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // ==========================================
+    // COLECCIÓN DE EVENTOS DE ASIGNACIÓN
+    // ==========================================
+    match /assignmentEvents/{eventId} {
+      allow read, write: if isAdmin() || isSuperAdmin();
+    }
+
+    // ==========================================
+    // COLECCIONES DE IA (FASE 5 y 6)
     // ==========================================
     match /conversations/{conversationId} {
       allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
     }
 
-    // ==========================================
-    // MENSAJES (Ownership estricto, inmutabilidad de campos clave)
-    // ==========================================
     match /messages/{messageId} {
       allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
-      
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId
                     && request.resource.data.keys().hasOnly(['conversationId', 'userId', 'senderType', 'content', 'createdAt', 'status', 'metadata']);
-                    
-      // No se permite update ni delete para mantener la inmutabilidad del historial (soft delete se manejará vía status si es necesario, pero por ahora denegamos)
       allow update, delete: if false; 
     }
 
-    // ==========================================
-    // MEMORIA DE IA (Ownership estricto)
-    // ==========================================
     match /aiMemory/{memoryId} {
       allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
     }
 
-    // ==========================================
-    // RESÚMENES DE IA (Ownership estricto)
-    // ==========================================
     match /aiSummaries/{summaryId} {
       allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
