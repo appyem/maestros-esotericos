@@ -1,95 +1,66 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // ==========================================
-  // SEGURIDAD - HEADERS
-  // ==========================================
+  reactStrictMode: true,
+  // Optimizaciones de producción
+  poweredByHeader: false,
+  compress: true,
+  
+  // Encabezados de Seguridad para Producción
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // Aplicar a todas las rutas
+        source: '/:path*',
         headers: [
-          // Protección contra clickjacking
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on',
           },
-          // Protección contra MIME type sniffing
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
           },
-          // Control de referencia
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
           {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
           },
-          // Content Security Policy (CSP) - Protección contra XSS
-          {
-            key: 'Content-Security-Policy',
-            value: `
-              default-src 'self';
-              script-src 'self' 'unsafe-eval' 'unsafe-inline';
-              style-src 'self' 'unsafe-inline';
-              img-src 'self' data: blob:;
-              font-src 'self' data:;
-              connect-src 'self' https://*.firebaseio.com https://*.googleapis.com;
-              frame-ancestors 'none';
-              base-uri 'self';
-              form-action 'self';
-            `.replace(/\s{2,}/g, ' ').trim(),
-          },
-          // Permissions Policy - Control de APIs del navegador
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
           },
-          // Strict Transport Security (HSTS)
           {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains',
+            // Content Security Policy ajustada para Next.js, Firebase y PWA
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://www.google.com", // Necesario para Firebase
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https://firebasestorage.googleapis.com",
+              "font-src 'self' data:",
+              "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com wss://*.firebaseio.com",
+              "frame-src 'self' https://www.google.com",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join('; '),
           },
         ],
       },
     ];
   },
-
-  // ==========================================
-  // SEGURIDAD - IMÁGENES
-  // ==========================================
-  images: {
-    // Solo permitir imágenes de dominios específicos (añadir más según necesidad)
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.firebaseio.com',
-      },
-      {
-        protocol: 'https',
-        hostname: '**.googleapis.com',
-      },
-    ],
-    // Formato de imagen optimizado
-    formats: ['image/avif', 'image/webp'],
-  },
-
-  // ==========================================
-  // SEGURIDAD - COMPILACIÓN
-  // ==========================================
-  // Ocultar indicador de powered-by
-  poweredByHeader: false,
-
-  // ==========================================
-  // RENDIMIENTO
-  // ==========================================
-  // Compresión de respuestas
-  compress: true,
-
-  // ==========================================
-  // DESARROLLO
-  // ==========================================
-  // React Strict Mode (ayuda a detectar problemas)
-  reactStrictMode: true,
 };
 
 export default nextConfig;
