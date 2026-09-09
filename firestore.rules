@@ -14,12 +14,26 @@ service cloud.firestore {
     }
 
     // ==========================================
+    // ANALÍTICA (Events & Aggregations) - F15
+    // ==========================================
+    match /analyticsEvents/{eventId} {
+      // Los clientes NO pueden leer ni escribir eventos crudos directamente.
+      // Solo el backend (Admin SDK) o Cloud Functions pueden hacerlo.
+      allow read, write: if false;
+    }
+
+    match /dailyAnalyticsAggregations/{date} {
+      // Solo administradores pueden leer las agregaciones para los dashboards.
+      // La escritura es exclusiva del backend (Jobs de agregación).
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ==========================================
     // AUDITORÍA AVANZADA (Audit Logs) - F13/F14
     // ==========================================
     match /auditLogs/{logId} {
-      // NADIE puede leer o escribir logs de auditoría desde el cliente.
-      // Solo el backend (Firebase Admin SDK) tiene acceso total.
-      allow read, write: if false;
+      allow read, write: if false; // Solo backend
     }
 
     // ==========================================
@@ -124,12 +138,8 @@ service cloud.firestore {
     // USUARIOS - F3/F7/F14
     // ==========================================
     match /users/{userId} {
-      // Un usuario puede leer su propio perfil. Admins pueden leer todos.
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      
-      // PROTECCIÓN CRÍTICA: NUNCA permitir que un cliente se escriba a sí mismo para cambiar su rol.
-      // La escritura de usuarios (cambios de rol, permisos, estado) SOLO se permite desde el backend (Admin SDK).
-      allow write: if false; 
+      allow write: if false; // Solo backend (para evitar auto-ascensos o manipulaciones)
     }
   }
 }
