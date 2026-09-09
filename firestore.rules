@@ -3,156 +3,74 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // ==========================================
-    // FUNCIONES AUXILIARES
+    // CONSULTAS (Consultations)
     // ==========================================
-    function isSignedIn() { return request.auth != null; }
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
-    function isSuperAdmin() { return isSignedIn() && request.auth.token.superAdmin == true; }
-    function isMasterOf(masterId) { return isSignedIn() && request.auth.uid == masterId; }
-
-    // ==========================================
-    // REGLA GLOBAL: DENEGAR POR DEFECTO
-    // ==========================================
-    match /{document=**} {
-      allow read, write: if false;
+    match /consultations/{consultationId} {
+      // Solo el cliente o el maestro asignado pueden leer
+      allow read: if request.auth != null && (
+        resource.data.clientUserId == request.auth.uid || 
+        resource.data.masterId == request.auth.uid
+      );
+      
+      // La creación y actualización de consultas SOLO se permite desde el backend (Admin SDK)
+      // Denegamos escritura directa desde el cliente para prevenir manipulación de estados o pagos.
+      allow write: if false; 
     }
 
     // ==========================================
-    // COLECCIONES PÚBLICAS
+    // CONTEXTOS DE CONSULTA (Consultation Contexts)
     // ==========================================
-    match /public_settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin() || isSuperAdmin();
+    match /consultationContexts/{contextId} {
+      // Solo el maestro asignado a esa consulta puede leer el contexto
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/consultations/$(resource.data.consultationId)) &&
+        get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.masterId == request.auth.uid;
+      
+      // Escritura solo desde backend
+      allow write: if false;
     }
 
     // ==========================================
-    // COLECCIÓN DE USUARIOS
+    // MENSAJES DE CONSULTA (Consultation Messages)
     // ==========================================
-    match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
-      allow create: if isSignedIn() && request.auth.uid == userId
-                    && (request.resource.data.role == 'CLIENTE' || request.resource.data.role == 'PUBLIC');
-      allow update: if (isOwner(userId) 
-                       && request.resource.data.role == resource.data.role
-                       && request.resource.data.status == resource.data.status
-                       && request.resource.data.isAnonymous == resource.data.isAnonymous)
-                    || isAdmin() || isSuperAdmin();
-      allow delete: if isAdmin() || isSuperAdmin();
+    match /consultationMessages/{messageId} {
+      // Solo el cliente o el maestro de esa consulta pueden leer los mensajes
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/consultations/$(resource.data.consultationId)) &&
+        (
+          get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.clientUserId == request.auth.uid ||
+          get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.masterId == request.auth.uid
+        );
+      
+      // Escritura solo desde backend (la API valida el rol y el token)
+      allow write: if false;
     }
 
     // ==========================================
-    // COLECCIÓN DE MAESTROS
+    // PAGOS (Payments) - De la Fase 9
     // ==========================================
-    match /masters/{masterId} {
-      allow read: if isOwner(masterId) || isAdmin() || isSuperAdmin() 
-                  || (isSignedIn() && resource.data.status == 'ACTIVE');
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId
-                    && request.resource.data.status == 'PENDING'
-                    && request.resource.data.onboardingStatus == 'NOT_STARTED';
-      allow update: if (isOwner(masterId) 
-                       && !request.resource.data.keys().hasAny(['status', 'verification', 'userId', 'createdAt', 'masterId', 'administrativeMetadata']))
-                    || isAdmin() || isSuperAdmin();
-      allow delete: if isAdmin() || isSuperAdmin();
+    match /payments/{paymentId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
     }
 
     // ==========================================
-    // COLECCIÓN DE DISPONIBILIDAD (Schedules)
-    // ==========================================
-    match /availabilitySchedules/{scheduleId} {
-      // Lectura: Solo el propio maestro o administradores (la disponibilidad pública se calcula vía backend DTO)
-      allow read: if isSignedIn() && (isOwner(resource.data.masterId) || isAdmin() || isSuperAdmin());
-      // Escritura: Solo el propio maestro o administradores
-      allow create, update, delete: if isSignedIn() && (isOwner(request.resource.data.masterId) || isAdmin() || isSuperAdmin());
-    }
-
-    // ==========================================
-    // COLECCIÓN DE EXCEPCIONES (Exceptions)
-    // ==========================================
-    match /availabilityExceptions/{exceptionId} {
-      allow read: if isSignedIn() && (isOwner(resource.data.masterId) || isAdmin() || isSuperAdmin());
-      allow create: if isSignedIn() && (isOwner(request.resource.data.masterId) || isAdmin() || isSuperAdmin());
-      allow update, delete: if isSignedIn() && (isOwner(resource.data.masterId) || isAdmin() || isSuperAdmin());
-    }
-
-    // ==========================================
-    // COLECCIÓN DE CITAS (Appointments)
+    // CITAS (Appointments) - De la Fase 8
     // ==========================================
     match /appointments/{appointmentId} {
-      // Lectura: Cliente propietario, maestro asignado o administradores
-      allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.clientUserId ||
-        request.auth.uid == resource.data.masterId ||
-        isAdmin() || isSuperAdmin()
+      allow read: if request.auth != null && (
+        resource.data.clientUserId == request.auth.uid || 
+        resource.data.masterId == request.auth.uid
       );
-      
-      // Creación: El cliente solo puede crear citas en estado 'REQUESTED' para sí mismo.
-      // Se valida estrictamente que no pueda enviar campos prohibidos.
-      allow create: if isSignedIn() && (
-        (request.auth.uid == request.resource.data.clientUserId && 
-         request.resource.data.status == 'REQUESTED' &&
-         request.resource.data.keys().hasOnly(['clientUserId', 'masterId', 'startAt', 'endAt', 'timezone', 'status', 'source', 'createdAt', 'updatedAt', 'createdBy', 'version'])) ||
-        isAdmin() || isSuperAdmin()
-      );
-      
-      // Actualización: 
-      // - Admin/SuperAdmin: Total.
-      // - Maestro: Puede actualizar estado (ej. a CONFIRMED, CANCELLED) de sus propias citas.
-      // - Cliente: SOLO puede cancelar su propia cita, y está obligado a establecer cancelledAt, cancelledBy y status='CANCELLED', sin modificar masterId, startAt, etc.
-      allow update: if isSignedIn() && (
-        isAdmin() || isSuperAdmin() ||
-        isMasterOf(resource.data.masterId) ||
-        (request.auth.uid == resource.data.clientUserId && 
-         request.resource.data.status == 'CANCELLED' &&
-         request.resource.data.cancelledAt != null &&
-         request.resource.data.cancelledBy == request.auth.uid &&
-         request.resource.data.masterId == resource.data.masterId &&
-         request.resource.data.startAt == resource.data.startAt &&
-         request.resource.data.endAt == resource.data.endAt)
-      );
-      
-      // Eliminación: Solo administradores (se prefiere soft delete vía estado CANCELLED)
-      allow delete: if isAdmin() || isSuperAdmin();
+      allow write: if false; // Solo backend
     }
 
     // ==========================================
-    // COLECCIÓN DE EVENTOS DE ASIGNACIÓN
+    // USUARIOS (Users)
     // ==========================================
-    match /assignmentEvents/{eventId} {
-      allow read, write: if isAdmin() || isSuperAdmin();
-    }
-
-    // ==========================================
-    // COLECCIONES DE IA (FASE 5 y 6)
-    // ==========================================
-    match /conversations/{conversationId} {
-      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
-    }
-
-    match /messages/{messageId} {
-      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId
-                    && request.resource.data.keys().hasOnly(['conversationId', 'userId', 'senderType', 'content', 'createdAt', 'status', 'metadata']);
-      allow update, delete: if false; 
-    }
-
-    match /aiMemory/{memoryId} {
-      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
-    }
-
-    match /aiSummaries/{summaryId} {
-      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
-    }
-
-    // ==========================================
-    // COLECCIÓN DE AUDITORÍA
-    // ==========================================
-    match /auditLogs/{logId} {
-      allow read: if isAdmin() || isSuperAdmin();
-      allow write: if false;
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Solo backend
     }
   }
 }

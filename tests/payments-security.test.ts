@@ -7,6 +7,13 @@ const createPaymentIntentSchema = z.object({
   idempotencyKey: z.string().min(1, 'La clave de idempotencia es requerida'),
 });
 
+// Tipo seguro para el payload del webhook en pruebas
+type WebhookPayload = {
+  eventId: string;
+  status: string;
+  [key: string]: unknown;
+};
+
 describe('Payments Security & Anti-Fraud', () => {
   describe('1. Validación de Entrada (Zod)', () => {
     it('debe rechazar solicitudes sin appointmentId', () => {
@@ -27,20 +34,15 @@ describe('Payments Security & Anti-Fraud', () => {
 
   describe('2. Prevención de Manipulación de Precio (Backend-Only)', () => {
     it('el backend debe ignorar cualquier "amount" enviado desde el frontend', () => {
-      // Simulación: El frontend intenta enviar un monto manipulado
       const maliciousPayload = {
         appointmentId: 'appt-123',
         idempotencyKey: 'key-123',
-        amount: 100, // El atacante intenta pagar 100 en lugar de 50000
+        amount: 100,
       };
 
-      // El esquema de validación del backend SOLO acepta appointmentId e idempotencyKey
       const validatedData = createPaymentIntentSchema.parse(maliciousPayload);
-      
-      // El campo 'amount' es descartado por Zod (strip por defecto)
       expect(validatedData).not.toHaveProperty('amount');
       
-      // El backend calcularía el monto real internamente (ej: 50000)
       const calculatedAmount = 50000;
       expect(calculatedAmount).toBe(50000);
     });
@@ -51,13 +53,12 @@ describe('Payments Security & Anti-Fraud', () => {
       const maliciousPayload = {
         appointmentId: 'appt-123',
         idempotencyKey: 'key-123',
-        userId: 'victim-user-id', // El atacante intenta pagar la cita de otra persona
+        userId: 'victim-user-id',
       };
 
       const validatedData = createPaymentIntentSchema.parse(maliciousPayload);
       expect(validatedData).not.toHaveProperty('userId');
       
-      // El backend usaría el userId extraído del token de autenticación (ej: 'attacker-user-id')
       const authenticatedUserId = 'attacker-user-id';
       expect(authenticatedUserId).toBe('attacker-user-id');
     });
@@ -68,12 +69,10 @@ describe('Payments Security & Anti-Fraud', () => {
       const processedKeys = new Set<string>();
       const idempotencyKey = 'unique-key-123';
 
-      // Primera solicitud
       const isFirst = !processedKeys.has(idempotencyKey);
       expect(isFirst).toBe(true);
       processedKeys.add(idempotencyKey);
 
-      // Segunda solicitud (doble clic o reintento)
       const isDuplicate = processedKeys.has(idempotencyKey);
       expect(isDuplicate).toBe(true);
     });
@@ -83,7 +82,7 @@ describe('Payments Security & Anti-Fraud', () => {
     const validSignature = 'mock-secret-signature';
     const processedEvents = new Set<string>();
 
-    const verifyWebhook = (payload: any, signature: string | undefined) => {
+    const verifyWebhook = (payload: WebhookPayload, signature: string | undefined) => {
       if (signature !== validSignature) return { valid: false, reason: 'Invalid signature' };
       if (processedEvents.has(payload.eventId)) return { valid: false, reason: 'Replay attack detected' };
       
@@ -103,7 +102,6 @@ describe('Payments Security & Anti-Fraud', () => {
     });
 
     it('debe rechazar un webhook válido reenviado (Replay Attack)', () => {
-      // Primer envío (ya procesado en la prueba anterior)
       const result = verifyWebhook({ eventId: 'evt-2', status: 'APPROVED' }, validSignature);
       expect(result.valid).toBe(false);
       expect(result.reason).toBe('Replay attack detected');
@@ -123,7 +121,7 @@ describe('Payments Security & Anti-Fraud', () => {
         'DECLINED': [],
         'EXPIRED': [],
         'FAILED': [],
-        'REFUNDED': [] // No se puede aprobar un reembolso
+        'REFUNDED': []
       };
 
       const isAllowed = validTransitions[currentStatus]?.includes(incomingStatus) || false;
