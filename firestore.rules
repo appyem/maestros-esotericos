@@ -2,23 +2,44 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Función auxiliar para verificar si el usuario es Admin o Super Admin
+    // Funciones auxiliares de rol
     function isAdmin() {
       return request.auth != null && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['ADMINISTRATOR', 'SUPER_ADMIN']);
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['ADMINISTRATOR', 'SUPER_ADMIN'];
+    }
+    
+    function isSuperAdmin() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SUPER_ADMIN';
     }
 
     // ==========================================
-    // AUDITORÍA (Audit Logs)
+    // AUDITORÍA AVANZADA (Audit Logs) - F13/F14
     // ==========================================
     match /auditLogs/{logId} {
-      // Nadie puede leer o escribir logs de auditoría desde el cliente.
-      // Solo el backend (Admin SDK) tiene acceso total.
+      // NADIE puede leer o escribir logs de auditoría desde el cliente.
+      // Solo el backend (Firebase Admin SDK) tiene acceso total.
       allow read, write: if false;
     }
 
     // ==========================================
-    // INCIDENCIAS (Incidents)
+    // ALERTAS DE SEGURIDAD (Security Alerts) - F14
+    // ==========================================
+    match /securityAlerts/{alertId} {
+      allow read: if isSuperAdmin();
+      allow write: if false; // Solo backend
+    }
+
+    // ==========================================
+    // CONFIGURACIÓN GLOBAL (Global Settings) - F14
+    // ==========================================
+    match /globalSettings/{settingId} {
+      allow read: if isAdmin();
+      allow write: if false; // Solo backend
+    }
+
+    // ==========================================
+    // INCIDENCIAS (Incidents) - F13/F14
     // ==========================================
     match /incidents/{incidentId} {
       allow read: if isAdmin();
@@ -26,7 +47,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // CONSULTAS (Consultations) - De F10
+    // CONSULTAS Y MENSAJES - F10
     // ==========================================
     match /consultations/{consultationId} {
       allow read: if request.auth != null && (
@@ -37,9 +58,6 @@ service cloud.firestore {
       allow write: if false; // Solo backend
     }
 
-    // ==========================================
-    // CONTEXTOS DE CONSULTA - De F10
-    // ==========================================
     match /consultationContexts/{contextId} {
       allow read: if request.auth != null && 
         exists(/databases/$(database)/documents/consultations/$(resource.data.consultationId)) &&
@@ -47,9 +65,6 @@ service cloud.firestore {
       allow write: if false; // Solo backend
     }
 
-    // ==========================================
-    // MENSAJES DE CONSULTA - De F10
-    // ==========================================
     match /consultationMessages/{messageId} {
       allow read: if request.auth != null && 
         exists(/databases/$(database)/documents/consultations/$(resource.data.consultationId)) &&
@@ -60,7 +75,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // NOTIFICACIONES - De F11
+    // NOTIFICACIONES - F11
     // ==========================================
     match /notifications/{notificationId} {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
@@ -76,12 +91,11 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // TIENDA (Products, Categories, Orders, Carts) - De F12
+    // TIENDA (Products, Categories, Orders, Carts) - F12
     // ==========================================
     match /products/{productId} {
-      // Lectura pública solo para productos activos
       allow read: if resource.data.status == 'ACTIVE';
-      allow write: if false; // Solo backend (Admin SDK)
+      allow write: if false; // Solo backend
     }
 
     match /categories/{categoryId} {
@@ -99,7 +113,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // PAGOS - De F9
+    // PAGOS - F9
     // ==========================================
     match /payments/{paymentId} {
       allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
@@ -107,11 +121,15 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // USUARIOS - De F3/F7
+    // USUARIOS - F3/F7/F14
     // ==========================================
     match /users/{userId} {
+      // Un usuario puede leer su propio perfil. Admins pueden leer todos.
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      allow write: if false; // Solo backend (para evitar que un usuario se ascienda a admin)
+      
+      // PROTECCIÓN CRÍTICA: NUNCA permitir que un cliente se escriba a sí mismo para cambiar su rol.
+      // La escritura de usuarios (cambios de rol, permisos, estado) SOLO se permite desde el backend (Admin SDK).
+      allow write: if false; 
     }
   }
 }
