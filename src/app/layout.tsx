@@ -1,38 +1,50 @@
-import type { Metadata, Viewport } from 'next';
+import type { Metadata } from "next";
+import { Inter, Playfair_Display } from "next/font/google";
 
-import { AuthProvider } from '@/features/auth';
+import { Header } from "@/components/layout/Header";
+import { AuthProvider } from "@/features/auth";
 
-import './globals.css';
+import "./globals.css";
+
+const inter = Inter({ 
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const playfair = Playfair_Display({ 
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: 'Maestros Esotéricos - Consultas Profesionales',
-  description: 'Plataforma profesional de consultas esotéricas con inteligencia artificial y maestros reales.',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'Maestros Esotéricos',
-  },
-};
-
-export const viewport: Viewport = {
-  themeColor: '#4f46e5',
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  title: "Maestros Esotéricos | Orientación y Guía Espiritual",
+  description: "Encuentra orientación profesional y discreta. Consultas de tarot, astrología y guía espiritual con inteligencia artificial y maestros reales.",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="es">
-      <body className="antialiased">
+    <html lang="es" className="dark">
+      <body className={`${inter.variable} ${playfair.variable} min-h-screen bg-background text-foreground antialiased`}>
         <AuthProvider>
-          {children}
+          <div className="flex min-h-screen flex-col">
+            <Header />
+            <main className="flex-1">{children}</main>
+            <footer className="border-t border-border bg-secondary py-8 text-center text-sm text-muted-foreground">
+              <div className="mx-auto max-w-7xl px-4">
+                <p>© {new Date().getFullYear()} Maestros Esotéricos. Todos los derechos reservados.</p>
+                <div className="mt-2 flex justify-center gap-4">
+                  <a href="/privacidad" className="hover:text-accent transition-colors">Privacidad</a>
+                  <a href="/terminos" className="hover:text-accent transition-colors">Términos</a>
+                </div>
+              </div>
+            </footer>
+          </div>
         </AuthProvider>
       </body>
     </html>

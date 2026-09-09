@@ -1,160 +1,62 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
-/* ==========================================
-   DESIGN TOKENS (Variables CSS)
-   ========================================== */
-
-:root {
-  /* Colores Base */
-  --background: #ffffff;
-  --foreground: #0f172a; /* Slate 900 */
-
-  /* Colores Primarios (Indigo profundo: confianza, sabiduría, profesionalismo) */
-  --primary: #4f46e5; /* Indigo 600 */
-  --primary-foreground: #ffffff;
-  --primary-hover: #4338ca; /* Indigo 700 */
-
-  /* Colores Secundarios (Ámbar/Dorado suave: valor, iluminación, acento) */
-  --secondary: #d97706; /* Amber 600 */
-  --secondary-foreground: #ffffff;
-  --secondary-hover: #b45309; /* Amber 700 */
-
-  /* Colores Semánticos */
-  --success: #16a34a; /* Green 600 */
-  --success-foreground: #ffffff;
-  --warning: #d97706; /* Amber 600 */
-  --warning-foreground: #ffffff;
-  --error: #dc2626; /* Red 600 */
-  --error-foreground: #ffffff;
-  --info: #2563eb; /* Blue 600 */
-  --info-foreground: #ffffff;
-
-  /* Superficies y Bordes */
-  --surface: #f8fafc; /* Slate 50 */
-  --surface-elevated: #ffffff;
-  --border: #e2e8f0; /* Slate 200 */
-  --border-focus: #4f46e5; /* Indigo 600 */
-
-  /* Tipografía */
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
-  /* Bordes y Sombras */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+@theme {
+  /* Paleta Oscura Mística: Carbón, Púrpura Profundo y Dorado Cálido */
+  --color-background: #0a0810;
+  --color-foreground: #f4f1ea;
   
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --color-primary: #6d28d9;
+  --color-primary-foreground: #ffffff;
+  --color-primary-glow: rgba(109, 40, 217, 0.4);
+  
+  --color-secondary: #151121;
+  --color-secondary-foreground: #f4f1ea;
+  
+  --color-muted: #1e1b2e;
+  --color-muted-foreground: #a8a3b8;
+  
+  --color-accent: #d97706;
+  --color-accent-foreground: #0a0810;
+  
+  --color-border: #2d2a3e;
+  --color-ring: #d97706;
+  
+  --color-card: #110e1a;
+  --color-card-foreground: #f4f1ea;
+  
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Playfair Display', serif;
 }
 
-/* Modo Oscuro (Automático por preferencia del sistema) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a; /* Slate 900 */
-    --foreground: #f8fafc; /* Slate 50 */
-
-    --primary: #6366f1; /* Indigo 500 */
-    --primary-foreground: #ffffff;
-    --primary-hover: #818cf8; /* Indigo 400 */
-
-    --secondary: #f59e0b; /* Amber 500 */
-    --secondary-foreground: #0f172a;
-    --secondary-hover: #fbbf24; /* Amber 400 */
-
-    --surface: #1e293b; /* Slate 800 */
-    --surface-elevated: #334155; /* Slate 700 */
-    --border: #334155; /* Slate 700 */
-    --border-focus: #6366f1; /* Indigo 500 */
-    
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 }
 
-/* ==========================================
-   TAILWIND THEME MAPPING (v4)
-   ========================================== */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary-hover: var(--primary-hover);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary-hover: var(--secondary-hover);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-error: var(--error);
-  --color-info: var(--info);
-  --color-surface: var(--surface);
-  --color-surface-elevated: var(--surface-elevated);
-  --color-border: var(--border);
-  --color-border-focus: var(--border-focus);
-
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
-
-  --shadow-sm: var(--shadow-sm);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
-}
-
-/* ==========================================
-   ESTILOS GLOBALES BASE Y ACCESIBILIDAD
-   ========================================== */
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-  font-family: var(--font-sans);
-  background-color: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/* Focus visible para accesibilidad (navegación por teclado) */
-*:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
-}
-
-/* Scrollbar personalizada profesional */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--surface);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: var(--radius-md);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .glow-primary {
+    box-shadow: 0 0 20px var(--color-primary-glow);
+  }
+  .bg-gradient-mystic {
+    background: radial-gradient(circle at top center, #1e1b2e 0%, #0a0810 70%);
+  }
 }
