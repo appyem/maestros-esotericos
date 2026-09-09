@@ -2,75 +2,116 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Función auxiliar para verificar si el usuario es Admin o Super Admin
+    function isAdmin() {
+      return request.auth != null && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['ADMINISTRATOR', 'SUPER_ADMIN']);
+    }
+
     // ==========================================
-    // CONSULTAS (Consultations)
+    // AUDITORÍA (Audit Logs)
+    // ==========================================
+    match /auditLogs/{logId} {
+      // Nadie puede leer o escribir logs de auditoría desde el cliente.
+      // Solo el backend (Admin SDK) tiene acceso total.
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // INCIDENCIAS (Incidents)
+    // ==========================================
+    match /incidents/{incidentId} {
+      allow read: if isAdmin();
+      allow write: if false; // Solo backend
+    }
+
+    // ==========================================
+    // CONSULTAS (Consultations) - De F10
     // ==========================================
     match /consultations/{consultationId} {
-      // Solo el cliente o el maestro asignado pueden leer
       allow read: if request.auth != null && (
         resource.data.clientUserId == request.auth.uid || 
-        resource.data.masterId == request.auth.uid
+        resource.data.masterId == request.auth.uid ||
+        isAdmin()
       );
-      
-      // La creación y actualización de consultas SOLO se permite desde el backend (Admin SDK)
-      // Denegamos escritura directa desde el cliente para prevenir manipulación de estados o pagos.
-      allow write: if false; 
+      allow write: if false; // Solo backend
     }
 
     // ==========================================
-    // CONTEXTOS DE CONSULTA (Consultation Contexts)
+    // CONTEXTOS DE CONSULTA - De F10
     // ==========================================
     match /consultationContexts/{contextId} {
-      // Solo el maestro asignado a esa consulta puede leer el contexto
       allow read: if request.auth != null && 
         exists(/databases/$(database)/documents/consultations/$(resource.data.consultationId)) &&
-        get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.masterId == request.auth.uid;
-      
-      // Escritura solo desde backend
-      allow write: if false;
+        (get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.masterId == request.auth.uid || isAdmin());
+      allow write: if false; // Solo backend
     }
 
     // ==========================================
-    // MENSAJES DE CONSULTA (Consultation Messages)
+    // MENSAJES DE CONSULTA - De F10
     // ==========================================
     match /consultationMessages/{messageId} {
-      // Solo el cliente o el maestro de esa consulta pueden leer los mensajes
       allow read: if request.auth != null && 
         exists(/databases/$(database)/documents/consultations/$(resource.data.consultationId)) &&
-        (
-          get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.clientUserId == request.auth.uid ||
-          get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.masterId == request.auth.uid
-        );
-      
-      // Escritura solo desde backend (la API valida el rol y el token)
-      allow write: if false;
+        (get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.clientUserId == request.auth.uid ||
+         get(/databases/$(database)/documents/consultations/$(resource.data.consultationId)).data.masterId == request.auth.uid ||
+         isAdmin());
+      allow write: if false; // Solo backend
     }
 
     // ==========================================
-    // PAGOS (Payments) - De la Fase 9
+    // NOTIFICACIONES - De F11
+    // ==========================================
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false; // Solo backend
+    }
+
+    match /notificationPreferences/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /communicationConsents/{consentId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // TIENDA (Products, Categories, Orders, Carts) - De F12
+    // ==========================================
+    match /products/{productId} {
+      // Lectura pública solo para productos activos
+      allow read: if resource.data.status == 'ACTIVE';
+      allow write: if false; // Solo backend (Admin SDK)
+    }
+
+    match /categories/{categoryId} {
+      allow read: if resource.data.status == 'ACTIVE';
+      allow write: if false; // Solo backend
+    }
+
+    match /carts/{cartId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /orders/{orderId} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Solo backend
+    }
+
+    // ==========================================
+    // PAGOS - De F9
     // ==========================================
     match /payments/{paymentId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow write: if false;
-    }
-
-    // ==========================================
-    // CITAS (Appointments) - De la Fase 8
-    // ==========================================
-    match /appointments/{appointmentId} {
-      allow read: if request.auth != null && (
-        resource.data.clientUserId == request.auth.uid || 
-        resource.data.masterId == request.auth.uid
-      );
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if false; // Solo backend
     }
 
     // ==========================================
-    // USUARIOS (Users)
+    // USUARIOS - De F3/F7
     // ==========================================
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // Solo backend
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if false; // Solo backend (para evitar que un usuario se ascienda a admin)
     }
   }
 }
