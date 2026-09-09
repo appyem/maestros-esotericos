@@ -6,32 +6,8 @@ import { Card } from '@/components/ui/Card';
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* Header / Navegación */}
-      <header className="border-b border-border bg-secondary/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl text-primary">✦</span>
-            <span className="text-xl font-serif font-bold tracking-wide">Maestros Esotéricos</span>
-          </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
-            <Link href="/servicios" className="hover:text-foreground transition-colors">Servicios</Link>
-            <Link href="/maestros" className="hover:text-foreground transition-colors">Maestros</Link>
-            <Link href="/como-funciona" className="hover:text-foreground transition-colors">Cómo funciona</Link>
-            <Link href="/tienda" className="hover:text-foreground transition-colors">Tienda</Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Iniciar Sesión</Button>
-            </Link>
-            <Link href="/register">
-              <Button variant="primary" size="sm">Registrarse</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
       {/* Hero Section */}
-      <main className="flex-1">
+      <main className="flex-1 pt-24">
         <section className="relative flex flex-col items-center justify-center px-4 py-24 sm:py-32 lg:py-40 text-center">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background -z-10" />
           <h1 className="max-w-4xl text-4xl font-serif font-bold tracking-tight sm:text-6xl mb-6">
