@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import Link from 'next/link';
 
 interface Message {
   id: string;
@@ -19,16 +20,18 @@ const SPECIALTY_MAP: Record<string, string> = {
   general: 'GENERAL'
 };
 
-const SERVICE_THEMES: Record<string, { name: string; color: string; bg: string; border: string; welcome: string }> = {
+const SERVICE_THEMES: Record<string, { name: string; color: string; bg: string; border: string; welcome: string; icon: string }> = {
   tarot: { 
     name: 'Tarot', 
+    icon: '🔮',
     color: 'text-purple-600 dark:text-purple-400', 
     bg: 'bg-purple-600', 
     border: 'border-purple-200 dark:border-purple-800',
     welcome: 'Hola, soy Ariel. Estoy aquí para escucharte con calma y ayudarte a ordenar lo que sientes, paso a paso. Para comenzar, ¿cómo te llamas? (Si prefieres, puedes darme un alias o apodo mientras entramos en confianza, lo importante es que te sientas a gusto).' 
   },
   amor: { 
-    name: 'Amor y Relaciones', 
+    name: 'Amor', 
+    icon: '❤️',
     color: 'text-rose-600 dark:text-rose-400', 
     bg: 'bg-rose-600', 
     border: 'border-rose-200 dark:border-rose-800',
@@ -36,6 +39,7 @@ const SERVICE_THEMES: Record<string, { name: string; color: string; bg: string; 
   },
   prosperidad: { 
     name: 'Prosperidad', 
+    icon: '✨',
     color: 'text-emerald-600 dark:text-emerald-400', 
     bg: 'bg-emerald-600', 
     border: 'border-emerald-200 dark:border-emerald-800',
@@ -43,19 +47,29 @@ const SERVICE_THEMES: Record<string, { name: string; color: string; bg: string; 
   },
   astrologia: { 
     name: 'Astrología', 
+    icon: '🌙',
     color: 'text-indigo-600 dark:text-indigo-400', 
     bg: 'bg-indigo-600', 
     border: 'border-indigo-200 dark:border-indigo-800',
     welcome: 'Hola, soy Ariel. Estoy aquí para escucharte con calma y ayudarte a ordenar lo que sientes, paso a paso. Para comenzar, ¿cómo te llamas? (Si prefieres, puedes darme un alias o apodo mientras entramos en confianza, lo importante es que te sientas a gusto).' 
   },
   general: { 
-    name: 'Orientación General', 
+    name: 'General', 
+    icon: '🕊️',
     color: 'text-primary', 
     bg: 'bg-primary', 
     border: 'border-border',
     welcome: 'Hola, soy Ariel. Estoy aquí para escucharte con calma y ayudarte a ordenar lo que sientes, paso a paso. Para comenzar, ¿cómo te llamas? (Si prefieres, puedes darme un alias o apodo mientras entramos en confianza, lo importante es que te sientas a gusto).' 
   }
 };
+
+const SERVICES = [
+  { key: 'amor', label: 'Amor', icon: '❤️' },
+  { key: 'tarot', label: 'Tarot', icon: '🔮' },
+  { key: 'prosperidad', label: 'Prosperidad', icon: '✨' },
+  { key: 'astrologia', label: 'Astrología', icon: '🌙' },
+  { key: 'general', label: 'General', icon: '🕊️' },
+];
 
 export default function ChatWindow() {
   const searchParams = useSearchParams();
@@ -130,8 +144,6 @@ export default function ChatWindow() {
 
     try {
       const fetchStart = Date.now();
-      
-      // Enviamos los últimos 8 mensajes para que Ariel tenga contexto y memoria
       const recentHistory = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
 
       const response = await fetch('/api/ai/chat', {
@@ -205,34 +217,34 @@ export default function ChatWindow() {
   };
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-4rem)] md:h-[600px] bg-card border ${theme.border} rounded-xl overflow-hidden shadow-lg transition-colors duration-300`}>
-      <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/30">
-        <div className="flex items-center gap-3">
-          <div className={`h-10 w-10 rounded-full ${theme.bg} bg-opacity-20 flex items-center justify-center text-lg font-bold ${theme.color}`}>
-            {theme.name.charAt(0)}
+    // h-[100dvh] asegura que ocupe toda la pantalla en móvil sin salirse. rounded-none en móvil, rounded-xl en escritorio.
+    <div className={`flex flex-col h-[100dvh] md:h-[600px] bg-card border ${theme.border} rounded-none md:rounded-xl overflow-hidden shadow-lg transition-colors duration-300`}>
+      
+      {/* HEADER: Responsive. El botón se acorta en móvil */}
+      <div className="flex items-center justify-between p-3 md:p-4 border-b border-border bg-secondary/30 shrink-0">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className={`h-9 w-9 md:h-10 md:w-10 rounded-full ${theme.bg} bg-opacity-20 flex items-center justify-center text-lg md:text-xl font-bold ${theme.color}`}>
+            {theme.icon}
           </div>
           <div>
-            <h2 className="font-semibold text-foreground">Guía de {theme.name}</h2>
-            <p className="text-xs text-muted-foreground">Escucha activa • Indagación profunda</p>
+            <h2 className="font-semibold text-foreground text-sm md:text-base">Guía de {theme.name}</h2>
+            <p className="text-[10px] md:text-xs text-muted-foreground hidden sm:block">Escucha activa • Indagación profunda</p>
           </div>
         </div>
         <button
           onClick={handleTransferToHuman}
           disabled={isTransferring || messages.length < 4 || isProcessing}
-          className={`px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 ${theme.bg}`}
+          className={`px-3 py-2 text-xs md:text-sm font-medium text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 ${theme.bg}`}
           aria-label="Solicitar conexión con un maestro"
         >
-          {isTransferring ? (
-            <span className="animate-pulse">Conectando...</span>
-          ) : (
-            <>
-              <span>👤</span> Conectar con un Maestro
-            </>
-          )}
+          <span>👤</span>
+          <span className="hidden sm:inline">Conectar con un Maestro</span>
+          <span className="sm:hidden">Maestro</span>
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background" role="log" aria-live="polite" aria-label="Historial de conversación">
+      {/* AREA DE MENSAJES: flex-1 asegura que tome todo el espacio disponible y haga scroll interno */}
+      <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 bg-background" role="log" aria-live="polite" aria-label="Historial de conversación">
         {messages.map((msg: Message) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
@@ -280,7 +292,8 @@ export default function ChatWindow() {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSendMessage} className="p-4 border-t border-border bg-card">
+      {/* AREA DE INPUT: shrink-0 evita que se encoja */}
+      <form onSubmit={handleSendMessage} className="p-3 md:p-4 border-t border-border bg-card shrink-0">
         <div className="flex gap-2">
           <input
             type="text"
@@ -294,13 +307,33 @@ export default function ChatWindow() {
           <button
             type="submit"
             disabled={isProcessing || isTransferring || !input.trim()}
-            className={`px-6 py-3 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm ${theme.bg}`}
+            className={`px-4 md:px-6 py-3 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm ${theme.bg}`}
             aria-label="Enviar mensaje"
           >
             Enviar
           </button>
         </div>
       </form>
+
+      {/* MENU INFERIOR DE SERVICIOS (Solo visible en móvil) */}
+      <div className="md:hidden flex items-center justify-around border-t border-border bg-secondary/30 py-2 px-1 shrink-0">
+        {SERVICES.map((svc) => {
+          const isActive = serviceKey === svc.key;
+          const svcTheme = SERVICE_THEMES[svc.key];
+          return (
+            <Link 
+              key={svc.key} 
+              href={`/chat?service=${svc.key}`}
+              className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
+                isActive ? `${svcTheme.color} bg-background shadow-sm` : 'text-muted-foreground'
+              }`}
+            >
+              <span className="text-lg">{svc.icon}</span>
+              <span className="text-[10px] font-medium">{svc.label}</span>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
