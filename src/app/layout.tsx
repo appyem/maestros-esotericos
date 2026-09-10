@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 
 import { Header } from "@/components/layout/Header";
+import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { AuthProvider } from "@/features/auth";
 
 import "./globals.css";
@@ -34,7 +35,7 @@ export default function RootLayout({
         <AuthProvider>
           <div className="flex min-h-screen flex-col">
             <Header />
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 pb-16 md:pb-0">{children}</main>
             <footer className="border-t border-border bg-secondary py-8 text-center text-sm text-muted-foreground">
               <div className="mx-auto max-w-7xl px-4">
                 <p>© {new Date().getFullYear()} Maestros Esotéricos. Todos los derechos reservados.</p>
@@ -44,6 +45,7 @@ export default function RootLayout({
                 </div>
               </div>
             </footer>
+            <BottomNavigation />
           </div>
         </AuthProvider>
       </body>

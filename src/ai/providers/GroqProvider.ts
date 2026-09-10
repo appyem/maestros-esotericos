@@ -8,15 +8,12 @@ export class GroqProvider implements AIProvider {
   private modelName: string;
 
   constructor() {
-    // NO validamos la API Key en el constructor para evitar que el build de Next.js falle.
-    // La validación se realiza en tiempo de ejecución (runtime) cuando se llama a generateResponse.
     this.modelName = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
   }
 
   async generateResponse(request: AIRequest, config: AIConfig): Promise<AIResponse> {
     const apiKey = process.env.GROQ_API_KEY;
     
-    // Validación en runtime
     if (!apiKey) {
       logger.error('GroqProvider: GROQ_API_KEY no está configurada en runtime.');
       throw new Error('CONFIGURACION_IA_FALTANTE: La clave de API de Groq no está configurada en las variables de entorno de Vercel.');
@@ -28,13 +25,13 @@ export class GroqProvider implements AIProvider {
     try {
       const systemPrompt = getSystemPrompt(config.promptVersion, request.context?.specialty);
       
-      const messagesForAPI: any[] = [{ role: 'system', content: systemPrompt }];
-      
-      if (request.context?.messageHistory && Array.isArray(request.context.messageHistory)) {
-        messagesForAPI.push(...request.context.messageHistory);
-      }
-      
-      messagesForAPI.push({ role: 'user', content: request.userInput });
+      // Usamos 'as const' para que TypeScript infiera los tipos literales exactos 
+      // y coincidan con lo que espera groq-sdk, evitando el uso de 'any'.
+      const messagesForAPI = [
+        { role: 'system' as const, content: systemPrompt },
+        ...(request.context?.messageHistory || []),
+        { role: 'user' as const, content: request.userInput }
+      ];
 
       const completion = await client.chat.completions.create({
         model: this.modelName,
