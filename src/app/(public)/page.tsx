@@ -10,8 +10,7 @@ export default function PublicHome() {
         Claridad espiritual y <span className="text-primary">conocimiento ancestral</span> al alcance de tu mano.
       </h1>
       <p className="max-w-2xl text-lg text-muted-foreground mb-10">
-        Inicia una conversación inmediata con nuestra guía de IA, sin registro. 
-        Cuando estés listo, transfiere tu consulta a un maestro humano verificado.
+        Inicia una conversación inmediata con Ariel, tu guía de confianza, sin necesidad de registro. Cuando sientas el momento, conectaremos tu consulta con los Maestros que iluminarán tu camino.
       </p>
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <Link href="/servicios">
