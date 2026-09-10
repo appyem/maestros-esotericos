@@ -138,7 +138,6 @@ export default function ChatWindow() {
 
     try {
       const fetchStart = Date.now();
-      const recentHistory = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
 
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -147,7 +146,7 @@ export default function ChatWindow() {
           userInput: userMessage.content,
           context: {
             specialty: backendSpecialty,
-            messageHistory: recentHistory,
+            
           }
         }),
       });
