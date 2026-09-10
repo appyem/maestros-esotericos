@@ -43,11 +43,13 @@ export interface AIContext {
   conversationId?: string;
   specialty?: AISpecialty;
   promptVersion: string;
+  // NUEVO: Permitir el historial de mensajes en el contexto
+  messageHistory?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 export interface AIRequest {
   requestId: string;
-  context?: Partial<AIContext>; // Permite campos opcionales al construir la solicitud
+  context?: Partial<AIContext>;
   userInput: string;
 }
 

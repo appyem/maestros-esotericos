@@ -1,14 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { AI_DEFAULT_CONFIG, AI_LIMITS } from '@/ai/config';
-import { getSystemPrompt } from '@/ai/prompts/system';
-import { MockProvider } from '@/ai/providers';
+import { GroqProvider } from '@/ai/providers';
 import type { AIConfig, AIErrorCode, AIError, AIRequest, AIResponse } from '@/ai/types';
 import { validateAIResponse } from '@/ai/validation/responseValidator';
 import { logger } from '@/lib/logger';
 
-
-const aiProvider = new MockProvider();
+const aiProvider = new GroqProvider();
 
 export async function processAIRequest(request: Partial<AIRequest>): Promise<AIResponse | AIError> {
   const requestId = request.requestId || uuidv4();
@@ -26,8 +24,8 @@ export async function processAIRequest(request: Partial<AIRequest>): Promise<AIR
     const sanitizedInput = request.userInput.replace(/<[^>]*>/g, '').trim();
 
     const config: AIConfig = { ...AI_DEFAULT_CONFIG, promptVersion: request.context?.promptVersion || AI_DEFAULT_CONFIG.promptVersion };
-    const systemPrompt = getSystemPrompt(config.promptVersion, request.context?.specialty);
 
+    // CORRECCIÓN CRÍTICA: Ahora pasamos el messageHistory al finalRequest
     const finalRequest: AIRequest = {
       requestId,
       context: {
@@ -36,6 +34,7 @@ export async function processAIRequest(request: Partial<AIRequest>): Promise<AIR
         conversationId: request.context?.conversationId,
         specialty: request.context?.specialty || 'GENERAL',
         promptVersion: config.promptVersion,
+        messageHistory: request.context?.messageHistory, // <-- ESTO PERMITE QUE ARIEL RECUERDE
       },
       userInput: sanitizedInput,
     };
@@ -43,10 +42,11 @@ export async function processAIRequest(request: Partial<AIRequest>): Promise<AIR
     let lastError: Error | null = null;
     for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
       try {
-        logger.info('AI Orchestrator: Llamando al proveedor', { 
+        logger.info('AI Orchestrator: Llamando a Groq', { 
           requestId, 
           attempt, 
-          systemPromptLength: systemPrompt.length 
+          model: config.model,
+          hasHistory: !!request.context?.messageHistory
         });
         
         const rawResponse = await aiProvider.generateResponse(finalRequest, config);
@@ -59,7 +59,7 @@ export async function processAIRequest(request: Partial<AIRequest>): Promise<AIR
         
         return validatedResponse;
       } catch (error) {
-        lastError = error as Error;
+        lastError = error instanceof Error ? error : new Error(String(error));
         logger.warn('AI Orchestrator: Fallo en intento', { requestId, attempt, error: lastError.message });
         
         if (attempt === config.maxRetries) {
@@ -73,7 +73,13 @@ export async function processAIRequest(request: Partial<AIRequest>): Promise<AIR
     return createError('AI_PROVIDER_ERROR', `Fallo después de ${config.maxRetries} intentos: ${lastError?.message}`, 'Lo siento, estoy teniendo dificultades para procesar tu consulta en este momento. Por favor, inténtalo de nuevo más tarde.');
 
   } catch (error) {
-    logger.error('AI Orchestrator: Error crítico no manejado', { requestId, error });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('AI Orchestrator: Error crítico no manejado', { requestId, error: errorMessage });
+    
+    if (errorMessage.includes('CONFIGURACION_IA_FALTANTE')) {
+      return createError('AI_CONFIGURATION_ERROR', 'Falta la clave de API de Groq', 'El sistema de orientación no está configurado correctamente. Por favor, contacte a soporte.');
+    }
+    
     return createError('AI_CONFIGURATION_ERROR', 'Error interno del orquestador', 'Ocurrió un error inesperado. Nuestro equipo ha sido notificado.');
   }
 }

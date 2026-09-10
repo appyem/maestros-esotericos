@@ -17,6 +17,11 @@ const RequestSchema = z.object({
       'TRABAJO', 'ORIENTACION_ESPIRITUAL', 'GENERAL'
     ]).optional(),
     promptVersion: z.string().optional(),
+    // NUEVO: Historial de mensajes para que Ariel tenga memoria de la sesión
+    messageHistory: z.array(z.object({ 
+      role: z.enum(['user', 'assistant']), 
+      content: z.string() 
+    })).optional(),
   }).optional(),
 });
 

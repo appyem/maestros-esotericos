@@ -8,7 +8,7 @@ import type { AIResponse } from '@/ai/types';
  */
 const AIResponseSchema = z.object({
   requestId: z.string().uuid(),
-  text: z.string().min(1).max(2000), // Límite de longitud de salida
+  text: z.string().min(1).max(4000), // Límite de longitud de salida
   intent: z.enum([
     'GREETING', 'GENERAL_GUIDANCE', 'SERVICE_INFORMATION', 'TAROT_REQUEST',
     'ASTROLOGY_REQUEST', 'LOVE_REQUEST', 'WORK_REQUEST', 'PROSPERITY_REQUEST',
