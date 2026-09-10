@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import Link from 'next/link';
 
 interface Message {
   id: string;
@@ -63,14 +62,6 @@ const SERVICE_THEMES: Record<string, { name: string; color: string; bg: string; 
   }
 };
 
-const SERVICES = [
-  { key: 'amor', label: 'Amor', icon: '❤️' },
-  { key: 'tarot', label: 'Tarot', icon: '🔮' },
-  { key: 'prosperidad', label: 'Prosperidad', icon: '✨' },
-  { key: 'astrologia', label: 'Astrología', icon: '🌙' },
-  { key: 'general', label: 'General', icon: '🕊️' },
-];
-
 export default function ChatWindow() {
   const searchParams = useSearchParams();
   const serviceKey = searchParams.get('service') || 'general';
@@ -78,6 +69,16 @@ export default function ChatWindow() {
   const backendSpecialty = SPECIALTY_MAP[serviceKey] || 'GENERAL';
   
   const router = useRouter();
+
+  // Estado para el popup de orientación de 5 segundos
+  const [showOrientation, setShowOrientation] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowOrientation(false);
+    }, 5000); // 5 segundos exactos
+    return () => clearTimeout(timer);
+  }, []);
 
   const [messages, setMessages] = useState<Message[]>([
     { id: uuidv4(), role: 'assistant', content: theme.welcome, timestamp: new Date().toISOString() }
@@ -217,18 +218,37 @@ export default function ChatWindow() {
   };
 
   return (
-    // h-[100dvh] asegura que ocupe toda la pantalla en móvil sin salirse. rounded-none en móvil, rounded-xl en escritorio.
-    <div className={`flex flex-col h-[100dvh] md:h-[600px] bg-card border ${theme.border} rounded-none md:rounded-xl overflow-hidden shadow-lg transition-colors duration-300`}>
+    // CONTENEDOR DE PANTALLA COMPLETA: fixed inset-0 evita el scroll de la página web.
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
       
-      {/* HEADER: Responsive. El botón se acorta en móvil */}
-      <div className="flex items-center justify-between p-3 md:p-4 border-b border-border bg-secondary/30 shrink-0">
-        <div className="flex items-center gap-2 md:gap-3">
-          <div className={`h-9 w-9 md:h-10 md:w-10 rounded-full ${theme.bg} bg-opacity-20 flex items-center justify-center text-lg md:text-xl font-bold ${theme.color}`}>
+      {/* POPUP DE ORIENTACIÓN (Dura 5 segundos) */}
+      {showOrientation && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6 transition-opacity duration-500">
+          <div className="bg-card border border-border rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl text-center">
+            <div className={`text-4xl mb-4`}>{theme.icon}</div>
+            <h3 className="text-xl font-semibold text-foreground mb-3">Bienvenido a tu espacio seguro</h3>
+            <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-6">
+              Soy Ariel, tu guía de confianza. Estoy aquí para escucharte con calma y ayudarte a ordenar lo que sientes, paso a paso. 
+              <br/><br/>
+              Cuando estés listo, podremos conectar tu consulta con los Maestros que iluminarán tu camino.
+            </p>
+            <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
+              <div className="bg-primary h-full animate-[shrink_5s_linear_forwards]" style={{ width: '100%' }}></div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">Iniciando conversación...</p>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER DEL CHAT: Limpio y adaptativo */}
+      <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/30 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className={`h-10 w-10 rounded-full ${theme.bg} bg-opacity-20 flex items-center justify-center text-xl font-bold ${theme.color}`}>
             {theme.icon}
           </div>
           <div>
-            <h2 className="font-semibold text-foreground text-sm md:text-base">Guía de {theme.name}</h2>
-            <p className="text-[10px] md:text-xs text-muted-foreground hidden sm:block">Escucha activa • Indagación profunda</p>
+            <h2 className="font-semibold text-foreground">Guía de {theme.name}</h2>
+            <p className="text-xs text-muted-foreground hidden sm:block">Escucha activa • Indagación profunda</p>
           </div>
         </div>
         <button
@@ -243,8 +263,8 @@ export default function ChatWindow() {
         </button>
       </div>
 
-      {/* AREA DE MENSAJES: flex-1 asegura que tome todo el espacio disponible y haga scroll interno */}
-      <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 bg-background" role="log" aria-live="polite" aria-label="Historial de conversación">
+      {/* ÁREA DE MENSAJES: flex-1 con scroll INTERNO solamente */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background" role="log" aria-live="polite" aria-label="Historial de conversación">
         {messages.map((msg: Message) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
@@ -292,8 +312,8 @@ export default function ChatWindow() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* AREA DE INPUT: shrink-0 evita que se encoja */}
-      <form onSubmit={handleSendMessage} className="p-3 md:p-4 border-t border-border bg-card shrink-0">
+      {/* ÁREA DE INPUT: Fija en la parte inferior */}
+      <form onSubmit={handleSendMessage} className="p-4 border-t border-border bg-card shrink-0 pb-safe">
         <div className="flex gap-2">
           <input
             type="text"
@@ -314,26 +334,6 @@ export default function ChatWindow() {
           </button>
         </div>
       </form>
-
-      {/* MENU INFERIOR DE SERVICIOS (Solo visible en móvil) */}
-      <div className="md:hidden flex items-center justify-around border-t border-border bg-secondary/30 py-2 px-1 shrink-0">
-        {SERVICES.map((svc) => {
-          const isActive = serviceKey === svc.key;
-          const svcTheme = SERVICE_THEMES[svc.key];
-          return (
-            <Link 
-              key={svc.key} 
-              href={`/chat?service=${svc.key}`}
-              className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
-                isActive ? `${svcTheme.color} bg-background shadow-sm` : 'text-muted-foreground'
-              }`}
-            >
-              <span className="text-lg">{svc.icon}</span>
-              <span className="text-[10px] font-medium">{svc.label}</span>
-            </Link>
-          );
-        })}
-      </div>
     </div>
   );
 }
