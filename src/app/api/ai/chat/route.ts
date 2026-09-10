@@ -3,7 +3,8 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 
 import { processAIRequest } from '@/ai/orchestrator';
-import type { AIResponse } from '@/ai/types';
+import { ContextBuilder } from '@/ai/context/ContextBuilder';
+import type { AIResponse, Message } from '@/ai/types';
 import { logger } from '@/lib/logger';
 
 const RequestSchema = z.object({
@@ -17,7 +18,6 @@ const RequestSchema = z.object({
       'TRABAJO', 'ORIENTACION_ESPIRITUAL', 'GENERAL'
     ]).optional(),
     promptVersion: z.string().optional(),
-    // NUEVO: Historial de mensajes para que Ariel tenga memoria de la sesión
     messageHistory: z.array(z.object({ 
       role: z.enum(['user', 'assistant']), 
       content: z.string() 
@@ -39,7 +39,56 @@ export async function POST(request: NextRequest) {
     }
 
     const { userInput, context } = validationResult.data;
-    const result = await processAIRequest({ userInput, context });
+    
+    // SOLUCIÓN ESCALABLE: Optimizar el contexto para evitar límites de tokens
+    let finalUserInput = userInput;
+    let finalContext = context;
+
+    if (context?.conversationId && context?.userId && context?.messageHistory) {
+      try {
+        const contextBuilder = new ContextBuilder();
+        
+        // Mapear el historial al formato esperado por su ContextBuilder existente
+        const messagesForBuilder: Message[] = context.messageHistory.map((m, idx) => ({
+          id: `msg_${idx}`,
+          conversationId: context.conversationId!,
+          userId: context.userId!,
+          senderType: m.role === 'user' ? 'USER' : 'AI',
+          content: m.content,
+          createdAt: new Date().toISOString(),
+          status: 'COMPLETED'
+        }));
+
+        const builtContext = await contextBuilder.buildContext(
+          context.conversationId,
+          context.userId,
+          context.specialty,
+          messagesForBuilder
+        );
+
+        // Si hay un resumen, lo anteponemos al mensaje actual. 
+        // Esto le da a la IA "memoria perfecta" sin gastar tokens en historial crudo.
+        if (builtContext.summary) {
+          finalUserInput = `[CONTEXTO DE LA CONVERSACIÓN: ${builtContext.summary}]\n\nConsulta actual: ${userInput}`;
+        }
+
+        // Limitamos el historial crudo a máximo 2 mensajes para no saturar tokens
+        finalContext = {
+          ...context,
+          messageHistory: context.messageHistory.slice(-2),
+        };
+
+      } catch (error) {
+        logger.warn('ContextBuilder: Fallo al construir contexto, usando fallback seguro', { error });
+        // Fallback seguro: si falla el builder, limitamos el historial a 2 mensajes para evitar el colapso
+        finalContext = {
+          ...context,
+          messageHistory: context.messageHistory.slice(-2),
+        };
+      }
+    }
+
+    const result = await processAIRequest({ userInput: finalUserInput, context: finalContext });
 
     if ('isUserFacing' in result && result.isUserFacing === false) {
       logger.error('AI API: Error del orquestador', { code: result.code, message: result.message });
