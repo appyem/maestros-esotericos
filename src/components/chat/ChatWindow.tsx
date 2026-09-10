@@ -70,15 +70,8 @@ export default function ChatWindow() {
   
   const router = useRouter();
 
-  // Estado para el popup de orientación de 5 segundos
+  // Estado para el popup: inicia visible, el usuario lo cierra manualmente
   const [showOrientation, setShowOrientation] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowOrientation(false);
-    }, 5000); // 5 segundos exactos
-    return () => clearTimeout(timer);
-  }, []);
 
   const [messages, setMessages] = useState<Message[]>([
     { id: uuidv4(), role: 'assistant', content: theme.welcome, timestamp: new Date().toISOString() }
@@ -218,29 +211,43 @@ export default function ChatWindow() {
   };
 
   return (
-    // CONTENEDOR DE PANTALLA COMPLETA: fixed inset-0 evita el scroll de la página web.
-    <div className="fixed inset-0 z-40 flex flex-col bg-background">
+    // CONTENEDOR DE PANTALLA COMPLETA
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
       
-      {/* POPUP DE ORIENTACIÓN (Dura 5 segundos) */}
+      {/* POPUP DE ORIENTACIÓN: Se cierra SOLO con el botón X o el botón Comenzar */}
       {showOrientation && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6 transition-opacity duration-500">
-          <div className="bg-card border border-border rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl text-center">
-            <div className={`text-4xl mb-4`}>{theme.icon}</div>
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6">
+          <div className="bg-card border border-border rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl text-center relative">
+            
+            {/* Botón X para cerrar */}
+            <button 
+              onClick={() => setShowOrientation(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1"
+              aria-label="Cerrar orientación"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+
+            <div className="text-4xl mb-4">{theme.icon}</div>
             <h3 className="text-xl font-semibold text-foreground mb-3">Bienvenido a tu espacio seguro</h3>
             <p className="text-muted-foreground text-sm md:text-base leading-relaxed mb-6">
               Soy Ariel, tu guía de confianza. Estoy aquí para escucharte con calma y ayudarte a ordenar lo que sientes, paso a paso. 
               <br/><br/>
               Cuando estés listo, podremos conectar tu consulta con los Maestros que iluminarán tu camino.
             </p>
-            <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
-              <div className="bg-primary h-full animate-[shrink_5s_linear_forwards]" style={{ width: '100%' }}></div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Iniciando conversación...</p>
+            
+            {/* Botón grande para comenzar */}
+            <button
+              onClick={() => setShowOrientation(false)}
+              className={`w-full py-3 text-white rounded-lg font-medium text-sm transition-all ${theme.bg} hover:opacity-90`}
+            >
+              Comenzar conversación
+            </button>
           </div>
         </div>
       )}
 
-      {/* HEADER DEL CHAT: Limpio y adaptativo */}
+      {/* HEADER DEL CHAT */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/30 shrink-0">
         <div className="flex items-center gap-3">
           <div className={`h-10 w-10 rounded-full ${theme.bg} bg-opacity-20 flex items-center justify-center text-xl font-bold ${theme.color}`}>
@@ -263,7 +270,7 @@ export default function ChatWindow() {
         </button>
       </div>
 
-      {/* ÁREA DE MENSAJES: flex-1 con scroll INTERNO solamente */}
+      {/* ÁREA DE MENSAJES */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background" role="log" aria-live="polite" aria-label="Historial de conversación">
         {messages.map((msg: Message) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -312,7 +319,7 @@ export default function ChatWindow() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ÁREA DE INPUT: Fija en la parte inferior */}
+      {/* ÁREA DE INPUT */}
       <form onSubmit={handleSendMessage} className="p-4 border-t border-border bg-card shrink-0 pb-safe">
         <div className="flex gap-2">
           <input

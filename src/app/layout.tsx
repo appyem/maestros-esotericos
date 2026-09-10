@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 
+import BottomNavigation from "@/components/layout/BottomNavigation";
 import { Header } from "@/components/layout/Header";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { AuthProvider } from "@/features/auth";
 
 import "./globals.css";
