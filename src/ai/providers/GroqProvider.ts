@@ -5,27 +5,29 @@ import type { AIConfig, AIIntent, AIProvider, AIRequest, AIResponse, AISafetyFla
 import { logger } from '@/lib/logger';
 
 export class GroqProvider implements AIProvider {
-  private client: Groq;
   private modelName: string;
 
   constructor() {
-    const apiKey = process.env.GROQ_API_KEY || '';
-    if (!apiKey) {
-      logger.error('GroqProvider: GROQ_API_KEY no está configurada.');
-      throw new Error('CONFIGURACION_IA_FALTANTE: La clave de API de Groq no está configurada.');
-    }
-    
-    this.client = new Groq({ apiKey });
+    // NO validamos la API Key en el constructor para evitar que el build de Next.js falle.
+    // La validación se realiza en tiempo de ejecución (runtime) cuando se llama a generateResponse.
     this.modelName = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
   }
 
   async generateResponse(request: AIRequest, config: AIConfig): Promise<AIResponse> {
+    const apiKey = process.env.GROQ_API_KEY;
+    
+    // Validación en runtime
+    if (!apiKey) {
+      logger.error('GroqProvider: GROQ_API_KEY no está configurada en runtime.');
+      throw new Error('CONFIGURACION_IA_FALTANTE: La clave de API de Groq no está configurada en las variables de entorno de Vercel.');
+    }
+    
+    const client = new Groq({ apiKey });
     const startTime = Date.now();
 
     try {
       const systemPrompt = getSystemPrompt(config.promptVersion, request.context?.specialty);
       
-      // Construimos el array de mensajes: System Prompt + Historial + Mensaje actual
       const messagesForAPI: any[] = [{ role: 'system', content: systemPrompt }];
       
       if (request.context?.messageHistory && Array.isArray(request.context.messageHistory)) {
@@ -34,7 +36,7 @@ export class GroqProvider implements AIProvider {
       
       messagesForAPI.push({ role: 'user', content: request.userInput });
 
-      const completion = await this.client.chat.completions.create({
+      const completion = await client.chat.completions.create({
         model: this.modelName,
         messages: messagesForAPI,
         temperature: config.temperature,
@@ -43,7 +45,7 @@ export class GroqProvider implements AIProvider {
 
       let text = completion.choices[0]?.message?.content?.trim() || '';
       
-      // Limpieza técnica obligatoria para cumplir la regla de no mostrar razonamiento interno
+      // Limpieza técnica obligatoria
       text = text.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '').trim();
       text = text.replace(/<thinking>[\s\S]*?(<\/thinking>|$)/gi, '').trim();
       
