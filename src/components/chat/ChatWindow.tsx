@@ -62,6 +62,9 @@ const SERVICE_THEMES: Record<string, { name: string; color: string; bg: string; 
   }
 };
 
+// LÍMITE SEGURO: 10 mensajes totales (5 intercambios) antes de sugerir elegantemente al maestro
+const MAX_CONVERSATION_MESSAGES = 10;
+
 export default function ChatWindow() {
   const searchParams = useSearchParams();
   const serviceKey = searchParams.get('service') || 'general';
@@ -70,9 +73,7 @@ export default function ChatWindow() {
   
   const router = useRouter();
 
-  // Estado para el popup: inicia visible, el usuario lo cierra manualmente
   const [showOrientation, setShowOrientation] = useState(true);
-
   const [messages, setMessages] = useState<Message[]>([
     { id: uuidv4(), role: 'assistant', content: theme.welcome, timestamp: new Date().toISOString() }
   ]);
@@ -85,6 +86,12 @@ export default function ChatWindow() {
   const [isThinking, setIsThinking] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estado solo para errores de API (429/500)
+  const [hasErrorLimit, setHasErrorLimit] = useState(false);
+  
+  // Derivamos el estado del límite sin usar useEffect (100% compliant con React)
+  const isLimitReached = messages.length >= MAX_CONVERSATION_MESSAGES || hasErrorLimit;
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -121,7 +128,8 @@ export default function ChatWindow() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isProcessing) return;
+    // Bloquear envío si ya se alcanzó el límite
+    if (!input.trim() || isProcessing || isLimitReached) return;
 
     const userMessage: Message = {
       id: uuidv4(),
@@ -146,10 +154,17 @@ export default function ChatWindow() {
           userInput: userMessage.content,
           context: {
             specialty: backendSpecialty,
-            
           }
         }),
       });
+
+      // INTERCEPCIÓN INTELIGENTE: Si es error 429 (límite de tokens) o 500, activamos el límite elegante
+      if (response.status === 429 || response.status === 500) {
+        setHasErrorLimit(true);
+        setIsProcessing(false);
+        setIsThinking(false);
+        return; // Salimos sin mostrar error feo
+      }
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -170,7 +185,9 @@ export default function ChatWindow() {
       
     } catch (err) {
       console.error('Chat error:', err);
-      setError(err instanceof Error ? err.message : 'Error de conexión. Por favor, intenta de nuevo.');
+      // En caso de cualquier otro error de red, también activamos el límite elegante
+      setHasErrorLimit(true);
+      setError(null);
       setIsProcessing(false);
       setIsThinking(false);
     }
@@ -209,16 +226,20 @@ export default function ChatWindow() {
     return new Date(timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
+  // Mensaje especial que se muestra al alcanzar el límite
+  const limitMessage = isLimitReached ? {
+    id: 'limit-message',
+    role: 'assistant' as const,
+    content: `He disfrutado mucho conversar contigo y comprender tu situación. Para brindarte la orientación profunda y personalizada que mereces, te invito a conectar con uno de nuestros Maestros expertos, quienes podrán ayudarte de manera más completa.`,
+    timestamp: new Date().toISOString()
+  } : null;
+
   return (
-    // CONTENEDOR DE PANTALLA COMPLETA
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       
-      {/* POPUP DE ORIENTACIÓN: Se cierra SOLO con el botón X o el botón Comenzar */}
       {showOrientation && (
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6">
           <div className="bg-card border border-border rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl text-center relative">
-            
-            {/* Botón X para cerrar */}
             <button 
               onClick={() => setShowOrientation(false)}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1"
@@ -235,7 +256,6 @@ export default function ChatWindow() {
               Cuando estés listo, podremos conectar tu consulta con los Maestros que iluminarán tu camino.
             </p>
             
-            {/* Botón grande para comenzar */}
             <button
               onClick={() => setShowOrientation(false)}
               className={`w-full py-3 text-white rounded-lg font-medium text-sm transition-all ${theme.bg} hover:opacity-90`}
@@ -246,7 +266,6 @@ export default function ChatWindow() {
         </div>
       )}
 
-      {/* HEADER DEL CHAT */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/30 shrink-0">
         <div className="flex items-center gap-3">
           <div className={`h-10 w-10 rounded-full ${theme.bg} bg-opacity-20 flex items-center justify-center text-xl font-bold ${theme.color}`}>
@@ -254,12 +273,14 @@ export default function ChatWindow() {
           </div>
           <div>
             <h2 className="font-semibold text-foreground">Guía de {theme.name}</h2>
-            <p className="text-xs text-muted-foreground hidden sm:block">Escucha activa • Indagación profunda</p>
+            <p className="text-xs text-muted-foreground hidden sm:block">
+              {isLimitReached ? 'Conecta con un Maestro' : 'Escucha activa • Indagación profunda'}
+            </p>
           </div>
         </div>
         <button
           onClick={handleTransferToHuman}
-          disabled={isTransferring || messages.length < 4 || isProcessing}
+          disabled={isTransferring || isProcessing}
           className={`px-3 py-2 text-xs md:text-sm font-medium text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 ${theme.bg}`}
           aria-label="Solicitar conexión con un maestro"
         >
@@ -269,7 +290,6 @@ export default function ChatWindow() {
         </button>
       </div>
 
-      {/* ÁREA DE MENSAJES */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background" role="log" aria-live="polite" aria-label="Historial de conversación">
         {messages.map((msg: Message) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -286,6 +306,24 @@ export default function ChatWindow() {
           </div>
         ))}
         
+        {/* Mensaje elegante de límite alcanzado */}
+        {isLimitReached && limitMessage && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm bg-primary/10 text-foreground rounded-bl-none border-2 border-primary">
+              <p className="whitespace-pre-wrap font-medium">{limitMessage.content}</p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={handleTransferToHuman}
+                  disabled={isTransferring}
+                  className={`px-4 py-2 text-white rounded-lg font-medium text-sm transition-all ${theme.bg} hover:opacity-90 disabled:opacity-50`}
+                >
+                  {isTransferring ? 'Conectando...' : 'Hablar con un Maestro ahora'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isThinking && (
           <div className="flex justify-start">
             <div className="bg-secondary/50 border border-border rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-3">
@@ -318,28 +356,30 @@ export default function ChatWindow() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ÁREA DE INPUT */}
-      <form onSubmit={handleSendMessage} className="p-4 border-t border-border bg-card shrink-0 pb-safe">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Cuéntame un poco más..."
-            disabled={isProcessing || isTransferring}
-            className="flex-1 px-4 py-3 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all disabled:opacity-50"
-            aria-label="Escribe tu mensaje"
-          />
-          <button
-            type="submit"
-            disabled={isProcessing || isTransferring || !input.trim()}
-            className={`px-4 md:px-6 py-3 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm ${theme.bg}`}
-            aria-label="Enviar mensaje"
-          >
-            Enviar
-          </button>
-        </div>
-      </form>
+      {/* El área de input se oculta completamente cuando se alcanza el límite */}
+      {!isLimitReached && (
+        <form onSubmit={handleSendMessage} className="p-4 border-t border-border bg-card shrink-0 pb-safe">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Cuéntame un poco más..."
+              disabled={isProcessing || isTransferring}
+              className="flex-1 px-4 py-3 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all disabled:opacity-50"
+              aria-label="Escribe tu mensaje"
+            />
+            <button
+              type="submit"
+              disabled={isProcessing || isTransferring || !input.trim()}
+              className={`px-4 md:px-6 py-3 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm ${theme.bg}`}
+              aria-label="Enviar mensaje"
+            >
+              Enviar
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
