@@ -1,5 +1,6 @@
 'use client';
 
+import { FirebaseError } from 'firebase/app';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
@@ -13,7 +14,7 @@ import { logger } from '@/lib/logger';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, status, signInAnon } = useAuth();
+  const { user, status, signInAnon, signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -27,8 +28,8 @@ function LoginForm() {
     try {
       await signInAnon();
       logger.info('Login anónimo exitoso desde página de login');
-    } catch (err) {
-      logger.error('Error en login anónimo', { err });
+    } catch (_err) {
+      logger.error('Error en login anónimo', { _err });
       setError('No se pudo iniciar sesión como invitado. Intenta de nuevo.');
     } finally {
       setIsLoading(false);
@@ -44,7 +45,11 @@ function LoginForm() {
 
   useEffect(() => {
     if (status === 'authenticated' && user) {
-      router.push('/client/dashboard');
+      if (user.role === 'ADMINISTRADOR' || user.role === 'SUPER_ADMIN') {
+        router.push('/admin');
+      } else {
+        router.push('/client/dashboard');
+      }
     }
   }, [status, user, router]);
 
@@ -53,9 +58,23 @@ function LoginForm() {
     setIsLoading(true);
     setError(null);
     
-    logger.info('Login con email intentado', { email });
-    setError('El login con email estará disponible próximamente. Usa "Continuar como invitado".');
-    setIsLoading(false);
+    try {
+      await signIn(email, password);
+    } catch (_err: unknown) {
+      logger.error('Error en login con email', { error: _err });
+      
+      if (_err instanceof FirebaseError) {
+        if (_err.code === 'auth/invalid-credential' || _err.code === 'auth/wrong-password' || _err.code === 'auth/user-not-found') {
+          setError('Correo o contraseña incorrectos.');
+        } else {
+          setError('Ocurrió un error al iniciar sesión. Intenta de nuevo.');
+        }
+      } else {
+        setError('Ocurrió un error al iniciar sesión. Intenta de nuevo.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (status === 'loading') {

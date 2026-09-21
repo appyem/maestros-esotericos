@@ -1,6 +1,12 @@
 'use client';
 
-import { onAuthStateChanged, signInAnonymously, signOut as firebaseSignOut, type User } from 'firebase/auth';
+import { 
+  onAuthStateChanged, 
+  signInAnonymously, 
+  signInWithEmailAndPassword, 
+  signOut as firebaseSignOut, 
+  type User 
+} from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
@@ -12,6 +18,7 @@ interface AuthContextType {
   user: AuthUser | null;
   status: SessionState;
   signInAnon: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -80,6 +87,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signIn = async (email: string, password: string) => {
+    try {
+      setStatus('loading');
+      await signInWithEmailAndPassword(auth, email, password);
+      logger.info('Usuario autenticado con email', { email });
+    } catch (_error: unknown) {
+      logger.error('Error en autenticación con email', { error: _error });
+      setStatus('unauthenticated');
+      throw _error;
+    }
+  };
+
   const signOut = async () => {
     try {
       setStatus('loading');
@@ -93,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, status, signInAnon, signOut }}>
+    <AuthContext.Provider value={{ user, status, signInAnon, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
