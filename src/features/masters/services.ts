@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase';
 import { logger } from '@/lib/logger';
 
-import type { MasterOwnProfileDTO, MasterProfile, PublicMasterDTO } from './types';
+import type { MasterOwnProfileDTO, MasterProfile, PublicMasterDTO, MasterSpecialty } from './types';
 
 // ==========================================
 // ESQUEMAS DE VALIDACIÓN ZOD
@@ -42,10 +42,6 @@ const updateMasterSchema = createMasterSchema.partial();
 // SERVICIOS
 // ==========================================
 
-/**
- * Crea un perfil de maestro inicial para un usuario.
- * El estado inicial es siempre PENDING y NOT_STARTED.
- */
 export async function createMasterProfile(userId: string, data: z.infer<typeof createMasterSchema>) {
   const validatedData = createMasterSchema.parse(data);
   const masterRef = doc(db, 'masters', userId);
@@ -67,9 +63,7 @@ export async function createMasterProfile(userId: string, data: z.infer<typeof c
     status: 'PENDING',
     onboardingStatus: 'IN_PROGRESS',
     ...validatedData,
-    verification: {
-      status: 'PENDING',
-    },
+    verification: { status: 'PENDING' },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -81,10 +75,6 @@ export async function createMasterProfile(userId: string, data: z.infer<typeof c
   return ownProfile as MasterOwnProfileDTO;
 }
 
-/**
- * Actualiza el perfil de un maestro.
- * Bloquea estrictamente la modificación de campos protegidos.
- */
 export async function updateMasterProfile(userId: string, data: z.infer<typeof updateMasterSchema>) {
   const validatedData = updateMasterSchema.parse(data);
   const masterRef = doc(db, 'masters', userId);
@@ -118,10 +108,6 @@ export async function updateMasterProfile(userId: string, data: z.infer<typeof u
   return ownProfile as MasterOwnProfileDTO;
 }
 
-/**
- * Obtiene el perfil público de un maestro por su slug.
- * Solo devuelve datos si el estado es ACTIVE.
- */
 export async function getPublicMasterProfile(slug: string): Promise<PublicMasterDTO | null> {
   const q = query(collection(db, 'masters'), where('publicSlug', '==', slug));
   const snapshot = await getDocs(q);
@@ -148,9 +134,6 @@ export async function getPublicMasterProfile(slug: string): Promise<PublicMaster
   };
 }
 
-/**
- * Obtiene el perfil completo (propio) de un maestro.
- */
 export async function getOwnMasterProfile(userId: string): Promise<MasterOwnProfileDTO | null> {
   const masterRef = doc(db, 'masters', userId);
   const masterDoc = await getDoc(masterRef);
@@ -163,4 +146,28 @@ export async function getOwnMasterProfile(userId: string): Promise<MasterOwnProf
   const { administrativeMetadata: _, ...ownProfile } = data;
   
   return ownProfile as MasterOwnProfileDTO;
+}
+
+export async function getActiveMasters(specialty?: MasterSpecialty): Promise<PublicMasterDTO[]> {
+  const mastersRef = collection(db, 'masters');
+  let q = query(mastersRef, where('status', '==', 'ACTIVE'));
+  
+  if (specialty) {
+    q = query(mastersRef, where('status', '==', 'ACTIVE'), where('specialties', 'array-contains', specialty));
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data() as MasterProfile;
+    return {
+      masterId: data.masterId,
+      displayName: data.displayName,
+      publicSlug: data.publicSlug,
+      professionalTitle: data.professionalTitle,
+      shortDescription: data.shortDescription,
+      specialties: data.specialties,
+      profileImageUrl: data.profileImageUrl,
+      status: data.status,
+    };
+  });
 }

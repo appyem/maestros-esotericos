@@ -62,7 +62,6 @@ const SERVICE_THEMES: Record<string, { name: string; color: string; bg: string; 
   }
 };
 
-// LÍMITE SEGURO: 10 mensajes totales (5 intercambios) antes de sugerir elegantemente al maestro
 const MAX_CONVERSATION_MESSAGES = 10;
 
 export default function ChatWindow() {
@@ -84,13 +83,9 @@ export default function ChatWindow() {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
-  const [isTransferring, setIsTransferring] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Estado solo para errores de API (429/500)
   const [hasErrorLimit, setHasErrorLimit] = useState(false);
   
-  // Derivamos el estado del límite sin usar useEffect (100% compliant con React)
   const isLimitReached = messages.length >= MAX_CONVERSATION_MESSAGES || hasErrorLimit;
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -128,7 +123,6 @@ export default function ChatWindow() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Bloquear envío si ya se alcanzó el límite
     if (!input.trim() || isProcessing || isLimitReached) return;
 
     const userMessage: Message = {
@@ -158,12 +152,11 @@ export default function ChatWindow() {
         }),
       });
 
-      // INTERCEPCIÓN INTELIGENTE: Si es error 429 (límite de tokens) o 500, activamos el límite elegante
       if (response.status === 429 || response.status === 500) {
         setHasErrorLimit(true);
         setIsProcessing(false);
         setIsThinking(false);
-        return; // Salimos sin mostrar error feo
+        return;
       }
 
       if (!response.ok) {
@@ -185,7 +178,6 @@ export default function ChatWindow() {
       
     } catch (err) {
       console.error('Chat error:', err);
-      // En caso de cualquier otro error de red, también activamos el límite elegante
       setHasErrorLimit(true);
       setError(null);
       setIsProcessing(false);
@@ -193,40 +185,15 @@ export default function ChatWindow() {
     }
   };
 
-  const handleTransferToHuman = async () => {
-    setIsTransferring(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/consultations/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serviceType: serviceKey,
-          contextSummary: messages.map((m: Message) => `${m.role}: ${m.content}`).join('\n'),
-          urgency: 'NORMAL',
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'No se pudo solicitar la consulta.');
-      }
-
-      const data = await response.json();
-      router.push(`/consulta/${data.consultationId}/reservar`);
-    } catch (err) {
-      console.error('Transfer error:', err);
-      setError(err instanceof Error ? err.message : 'Error al conectar con un maestro.');
-      setIsTransferring(false);
-    }
+  const handleTransferToHuman = () => {
+    const specialtyParam = backendSpecialty !== 'GENERAL' ? `?specialty=${backendSpecialty}` : '';
+    router.push(`/maestros${specialtyParam}`);
   };
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
-  // Mensaje especial que se muestra al alcanzar el límite
   const limitMessage = isLimitReached ? {
     id: 'limit-message',
     role: 'assistant' as const,
@@ -280,7 +247,7 @@ export default function ChatWindow() {
         </div>
         <button
           onClick={handleTransferToHuman}
-          disabled={isTransferring || isProcessing}
+          disabled={isProcessing}
           className={`px-3 py-2 text-xs md:text-sm font-medium text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 ${theme.bg}`}
           aria-label="Solicitar conexión con un maestro"
         >
@@ -306,7 +273,6 @@ export default function ChatWindow() {
           </div>
         ))}
         
-        {/* Mensaje elegante de límite alcanzado */}
         {isLimitReached && limitMessage && (
           <div className="flex justify-start">
             <div className="max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm bg-primary/10 text-foreground rounded-bl-none border-2 border-primary">
@@ -314,10 +280,9 @@ export default function ChatWindow() {
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={handleTransferToHuman}
-                  disabled={isTransferring}
-                  className={`px-4 py-2 text-white rounded-lg font-medium text-sm transition-all ${theme.bg} hover:opacity-90 disabled:opacity-50`}
+                  className={`px-4 py-2 text-white rounded-lg font-medium text-sm transition-all ${theme.bg} hover:opacity-90`}
                 >
-                  {isTransferring ? 'Conectando...' : 'Hablar con un Maestro ahora'}
+                  Hablar con un Maestro ahora
                 </button>
               </div>
             </div>
@@ -356,7 +321,6 @@ export default function ChatWindow() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* El área de input se oculta completamente cuando se alcanza el límite */}
       {!isLimitReached && (
         <form onSubmit={handleSendMessage} className="p-4 border-t border-border bg-card shrink-0 pb-safe">
           <div className="flex gap-2">
@@ -365,13 +329,13 @@ export default function ChatWindow() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Cuéntame un poco más..."
-              disabled={isProcessing || isTransferring}
+              disabled={isProcessing}
               className="flex-1 px-4 py-3 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all disabled:opacity-50"
               aria-label="Escribe tu mensaje"
             />
             <button
               type="submit"
-              disabled={isProcessing || isTransferring || !input.trim()}
+              disabled={isProcessing || !input.trim()}
               className={`px-4 md:px-6 py-3 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm ${theme.bg}`}
               aria-label="Enviar mensaje"
             >

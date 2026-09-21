@@ -6,3 +6,4 @@ export {
   getOwnMasterProfile 
 } from './services';
 export { MasterProfileForm } from './components/MasterProfileForm';
+export * from './services';

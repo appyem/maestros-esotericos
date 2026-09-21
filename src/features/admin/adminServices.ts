@@ -1,20 +1,24 @@
-import { doc, runTransaction } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  runTransaction,
+  where,
+} from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 
 import { db } from '@/lib/firebase';
 import { logger } from '@/lib/logger';
 
 import { createAuditLog } from './auditService';
-import type { UserRole } from './types';
+import type { UserRole } from './types'; // <-- CORREGIDO: Usa el tipo local que espera createAuditLog
 
 // ==========================================
 // SERVICIOS DE MAESTROS (ONBOARDING)
 // ==========================================
 
-/**
- * Aprueba o rechaza la solicitud de un maestro.
- * Solo usuarios con rol ADMINISTRATOR o SUPER_ADMIN y permiso 'masters.review' pueden ejecutar esto.
- */
 export async function reviewMasterApplication(
   actorUserId: string,
   actorRole: UserRole,
@@ -23,7 +27,7 @@ export async function reviewMasterApplication(
   reason?: string
 ): Promise<void> {
   const requestId = uuidv4();
-  const masterRef = doc(db, 'users', masterId);
+  const masterRef = doc(db, 'masters', masterId);
 
   try {
     await runTransaction(db, async (transaction) => {
@@ -33,10 +37,6 @@ export async function reviewMasterApplication(
       }
 
       const masterData = masterDoc.data();
-      if (masterData.role !== 'MASTER') {
-        throw new Error('USER_IS_NOT_A_MASTER');
-      }
-
       const newStatus = action === 'APPROVE' ? 'ACTIVE' : 'REJECTED';
       const auditAction = action === 'APPROVE' ? 'ADMIN_APPROVE_MASTER' : 'ADMIN_REJECT_MASTER';
 
@@ -48,12 +48,11 @@ export async function reviewMasterApplication(
         updatedAt: new Date().toISOString(),
       });
 
-      // Registrar en auditoría
       await createAuditLog(
         actorUserId,
         actorRole,
         auditAction,
-        'users',
+        'masters',
         masterId,
         'SUCCESS',
         requestId,
@@ -68,7 +67,7 @@ export async function reviewMasterApplication(
       actorUserId,
       actorRole,
       'ADMIN_REVIEW_MASTER',
-      'users',
+      'masters',
       masterId,
       'FAILURE',
       requestId,
@@ -83,16 +82,12 @@ export async function reviewMasterApplication(
 // SERVICIOS DE INVENTARIO
 // ==========================================
 
-/**
- * Ajusta el stock de un producto o variante.
- * Requiere permiso 'inventory.adjust'. Previene stock negativo.
- */
 export async function adjustInventory(
   actorUserId: string,
   actorRole: UserRole,
   productId: string,
   variantId: string | undefined,
-  adjustmentQuantity: number, // Positivo para entrada, negativo para salida/pérdida
+  adjustmentQuantity: number,
   reason: string
 ): Promise<void> {
   if (adjustmentQuantity === 0) return;
@@ -111,7 +106,6 @@ export async function adjustInventory(
       let currentStock = productData.stockQuantity || 0;
       let newStock = currentStock + adjustmentQuantity;
 
-      // Si hay variantes, ajustar el stock de la variante específica
       if (variantId && productData.variants) {
         const variantIndex = productData.variants.findIndex(
           (v: { variantId: string }) => v.variantId === variantId
@@ -137,7 +131,6 @@ export async function adjustInventory(
           updatedAt: new Date().toISOString(),
         });
       } else {
-        // Producto sin variantes
         if (newStock < 0) {
           throw new Error('INSUFFICIENT_STOCK_FOR_ADJUSTMENT');
         }
@@ -148,7 +141,6 @@ export async function adjustInventory(
         });
       }
 
-      // Registrar en auditoría
       await createAuditLog(
         actorUserId,
         actorRole,
@@ -184,10 +176,6 @@ export async function adjustInventory(
 // SERVICIOS DE PEDIDOS (OPERATIVOS)
 // ==========================================
 
-/**
- * Actualiza el estado de un pedido de forma controlada.
- * Valida que la transición de estado sea permitida.
- */
 export async function updateOrderStatus(
   actorUserId: string,
   actorRole: UserRole,
@@ -205,10 +193,10 @@ export async function updateOrderStatus(
     'READY_TO_SHIP': ['SHIPPED', 'CANCELLED'],
     'SHIPPED': ['DELIVERED'],
     'DELIVERED': ['COMPLETED'],
-    'COMPLETED': ['REFUNDED'], // Solo reembolsos posteriores
+    'COMPLETED': ['REFUNDED'],
     'CANCELLED': [],
     'REFUNDED': [],
-    'FAILED': ['PENDING_PAYMENT'], // Permitir reintento
+    'FAILED': ['PENDING_PAYMENT'],
   };
 
   try {
@@ -235,7 +223,6 @@ export async function updateOrderStatus(
 
       transaction.update(orderRef, updateData);
 
-      // Registrar en auditoría
       await createAuditLog(
         actorUserId,
         actorRole,
@@ -265,4 +252,76 @@ export async function updateOrderStatus(
     logger.error('Error al actualizar estado de pedido', { error, orderId });
     throw error;
   }
+}
+
+// ==========================================
+// SERVICIOS DE DASHBOARD (MÉTRICAS REALES)
+// ==========================================
+
+export interface AdminDashboardStats {
+  activeMasters: number;
+  pendingMasters: number;
+  pendingConsultations: number;
+  pendingOrders: number;
+  openIncidents: number;
+}
+
+export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  const activeMastersQ = query(collection(db, 'masters'), where('status', '==', 'ACTIVE'));
+  const activeMastersSnap = await getDocs(activeMastersQ);
+
+  const pendingMastersQ = query(collection(db, 'masters'), where('status', '==', 'PENDING'));
+  const pendingMastersSnap = await getDocs(pendingMastersQ);
+
+  const pendingConsultationsQ = query(collection(db, 'consultations'), where('status', 'in', ['CREATED', 'READY']));
+  const pendingConsultationsSnap = await getDocs(pendingConsultationsQ);
+
+  const pendingOrdersQ = query(collection(db, 'orders'), where('status', 'in', ['PENDING_PAYMENT', 'PAID', 'PROCESSING']));
+  const pendingOrdersSnap = await getDocs(pendingOrdersQ);
+
+  const openIncidentsQ = query(collection(db, 'incidents'), where('status', 'in', ['OPEN', 'IN_PROGRESS']));
+  const openIncidentsSnap = await getDocs(openIncidentsQ);
+
+  return {
+    activeMasters: activeMastersSnap.size,
+    pendingMasters: pendingMastersSnap.size,
+    pendingConsultations: pendingConsultationsSnap.size,
+    pendingOrders: pendingOrdersSnap.size,
+    openIncidents: openIncidentsSnap.size,
+  };
+}
+
+// ==========================================
+// SERVICIOS DE LISTADO DE MAESTROS
+// ==========================================
+
+export interface AdminMasterListItem {
+  masterId: string;
+  displayName: string;
+  specialties: string[];
+  status: string;
+  onboardingStatus: string;
+  createdAt: string;
+}
+
+export async function getMastersForAdmin(statusFilter?: string): Promise<AdminMasterListItem[]> {
+  const mastersRef = collection(db, 'masters');
+  let q = query(mastersRef, orderBy('createdAt', 'desc'));
+  
+  if (statusFilter) {
+    q = query(mastersRef, where('status', '==', statusFilter), orderBy('createdAt', 'desc'));
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      masterId: doc.id,
+      displayName: data.displayName || 'Sin nombre',
+      specialties: data.specialties || [],
+      status: data.status || 'UNKNOWN',
+      onboardingStatus: data.onboardingStatus || 'NOT_STARTED',
+      createdAt: data.createdAt || '',
+    };
+  });
 }
